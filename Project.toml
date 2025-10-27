@@ -1,15 +1,13 @@
-name = "ParamViz"
+name = "ClimaViz"
 uuid = "9706fb73-1de9-418d-83da-fef8cd99bb4a"
 authors = ["AlexisRenchon <a.renchon@gmail.com>"]
 version = "0.1.0"
 
-[deps]
-Bonito = "824d6782-a2ef-11e9-3a09-e5662e0c26f8"
-SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
-Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
-UnitfulMoles = "999f2bd7-36bf-5ba7-9bc1-c9473aa75374"
-WGLMakie = "276b4fcb-3e11-5398-bf8b-a0c2d153d008"
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
 
 [compat]
 julia = "1.10"
