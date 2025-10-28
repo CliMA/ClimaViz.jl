@@ -1,49 +1,32 @@
-# ParamViz.jl - dynamic parameterisation web app 
-![chrome_a0AHoCQMHV](https://github.com/CliMA/ParamViz.jl/assets/22160257/832adffe-5a5b-4d46-9d15-a088bcb4b460)
-## Install ParamViz.jl: (unregistered for now)
-```jl
-julia> ]
-pkg> add https://github.com/CliMA/ParamViz.jl
+# ClimaViz.jl
+
+This is a prototype for a convenient viz of CliMA models (ClimaLand, ClimaAtmos, ClimaCoupler) outputs.
+
+```julia
+using ClimaViz
+dashboard(path)
 ```
 
-## Load packages:
-```jl
-julia> using ParamViz
-julia> using Unitful: m, s, mol, μmol
-julia> FT = Float64
+Will launch a dashboard in a web browser.
+
+It works from HPC as well, all you need is ssh as usual but with port forwarding
+
+```shell
+ssh -L 8080:localhost:8080 user@ssh.example.com
 ```
 
-## Create a parameterisation function
-```jl
-function ParamViz.parameterisation(PAR, LAI, ρ_leaf, K, Ω, a, b)   
-         APAR = PAR * (1 - ρ_leaf) * (1 - exp(-K * LAI * Ω)) 
-         return APAR
-end
-```
+and then open this URL on your local browser:
 
-## Create struct
-```jl
-    drivers = Drivers(("PAR (μmol m⁻² s⁻¹)", "LAI (m² m⁻²)"),
-                         (FT.([0, 1500 * 1e-6]), FT.([0, 10])),
-                         ((mol*m^-2*s^-1, μmol*m^-2*s^-1), (m^2*m^-2, m^2*m^-2))
-                        )
+http://localhost:8080/
 
-    parameters = Parameters(("canopy reflectance, ρ_leaf",
-                                "extinction coefficient, K",
-                                "clumping index, Ω"),
-                               (FT.([0, 1]), FT.([0, 1]), FT.([0, 1])),
-                               ((m, m), (m, m), (m, m)) # dummy units, no conversion
-                              )
+## Features
 
-    constants = Constants(("a", "b"), (FT(1), FT(2))) # dummy constants
-    inputs = Inputs(drivers, parameters, constants)
-    output = Output("APAR (μmol m⁻² s⁻¹)", [0, 1500 * 1e-6], (mol*m^-2*s^-1, μmol*m^-2*s^-1))
-```
+implemented:
+- global map of variables var at time t, height h
+- animate with play
 
-## Call webapp:
-```jl
-julia> webapp(ParamViz.parameterisation, inputs, output)
-```
+## Requests
+New ideas are welcome. Anything is possible so don't hesitate.
+Current to do list: see [issue](https://github.com/AlexisRenchon/ClimaViz.jl/issues/1)
 
-## Open app in your browser: 
-Open your favorite browser and go to the URL http://localhost:9384/browser-display
+<img width="1611" height="1047" alt="image" src="https://github.com/user-attachments/assets/61737b13-fe83-434c-87ea-c311975f0429" />
