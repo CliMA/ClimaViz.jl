@@ -1,6 +1,6 @@
 # ClimaViz.jl
 
-Generate a web dashboard of your simulation outputs directly from HPC or locally.
+Generate a [web dashboard](https://clima.westus3.cloudapp.azure.com/jsserve/atmos) of your simulation outputs directly from HPC or locally.
 Currently supports ClimaAtmos and ClimaLand.
 
 ## Instructions:
