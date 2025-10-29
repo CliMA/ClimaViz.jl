@@ -105,12 +105,18 @@ Julia package extensions (introduced in Julia 1.9) allow packages to provide opt
 
 ## Testing
 
-The extension structure has been validated:
-- ✅ Project.toml syntax correct
-- ✅ Extension modules syntax correct
-- ✅ Weak dependencies properly configured
-- ✅ Extension triggers correctly defined
-- ✅ Module declarations updated correctly
+The extension structure has been validated with automated tests that verify:
+- Project.toml syntax is correct
+- Extension modules syntax is correct
+- Weak dependencies are properly configured
+- Extension triggers are correctly defined
+- Module declarations have been updated correctly
+
+You can run the validation tests with:
+```julia
+# From the repository root
+include("path/to/test_extensions.jl")
+```
 
 ## Migration Guide for Users
 
