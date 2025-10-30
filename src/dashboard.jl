@@ -9,7 +9,9 @@ function dashboard(path)
         vars = collect(keys(simdir.vars))
 
         # Create UI controls
-        var_menu = Bonito.Dropdown(vars)
+        var_menu_style = Bonito.Styles("font-size" => "4em", "font-weight" => "bold")
+        var_menu = Bonito.ChoicesBox(vars; style = var_menu_style)
+        var_menu.value[] = first(vars)
         var_selected = var_menu.value
 
         # Get available reductions and periods for initial variable
