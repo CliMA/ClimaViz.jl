@@ -2,9 +2,15 @@ export create_main_figure, create_profile_figure, create_timeseries_figure
 
 # Create main map figure with surface plot
 function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile)
-    fig = Figure(size = (2000, 1000))
+    # Large figure that fills screen naturally (minimal CSS scaling)
+    fig = Figure(size = (3200, 1800))
     title = Observable("title")
-    ax = GeoAxis(fig[1, 1], title = title, titlesize = 24.0f0)
+
+    # Equirectangular projection
+    ax = GeoAxis(fig[1, 1], title = title, titlesize = 24.0f0, dest = "+proj=eqc")
+
+    # Hide axis decorations for cleaner look
+    hidedecorations!(ax)
 
     # Deactivate zoom via scroll
     deactivate_interaction!(ax, :scrollzoom)
@@ -35,16 +41,21 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
         "]"
     ))
 
-    # Colorbar on the right side
+    # Horizontal colorbar at bottom-right inside the map
     Colorbar(
-             fig[1, 2],
+             fig[1, 1],
              p,
-             vertical = true,
+             vertical = false,
              colorrange = limits,
-             width = 15,
-             ticklabelsize = 20.0,
+             width = Relative(0.25),
+             height = 20,
+             ticklabelsize = 24.0,
              label = colorbar_label,
-             labelsize = 30.0
+             labelsize = 28.0,
+             halign = :right,
+             valign = :bottom,
+             tellheight = false,
+             tellwidth = false
             )
 
     # Update colorbar label when variable changes
@@ -63,7 +74,8 @@ end
 # Create vertical profile figure
 function create_profile_figure(var, heights, profile, profile_limits, current_height,
                                profile_title, time_selected)
-    fig_profile = Figure(size = (800, 500))
+    # 50% bigger: 400*1.5 = 600, 350*1.5 = 525
+    fig_profile = Figure(size = (600, 525))
     profile_xlabel = Observable(string(ClimaAnalysis.short_name(var[]), " [", ClimaAnalysis.units(var[]), "]"))
 
     ax_profile = Axis(fig_profile[1, 1],
@@ -90,7 +102,8 @@ end
 
 # Create time series figure
 function create_timeseries_figure(var, dates_array, timeseries, timeseries_title, time_selected)
-    fig_timeseries = Figure(size = (800, 500))
+    # 50% bigger: 400*1.5 = 600, 350*1.5 = 525
+    fig_timeseries = Figure(size = (600, 525))
     timeseries_ylabel = Observable(string(ClimaAnalysis.short_name(var[]), " [", ClimaAnalysis.units(var[]), "]"))
 
     ax_timeseries = Axis(fig_timeseries[1, 1],
