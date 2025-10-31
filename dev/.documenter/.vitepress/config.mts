@@ -11,7 +11,7 @@ function getBaseRepository(base: string): string {
 }
 
 const baseTemp = {
-  base: '/ClimaViz.jl/dev/',// TODO: replace this in makedocs!
+  base: '/clima.github.io/ClimaViz.jl/dev/',// TODO: replace this in makedocs!
 }
 
 const navTemp = {
@@ -33,7 +33,7 @@ const nav = [
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
-  base: '/ClimaViz.jl/dev/',// TODO: replace this in makedocs!
+  base: '/clima.github.io/ClimaViz.jl/dev/',// TODO: replace this in makedocs!
   title: 'ClimaViz.jl',
   description: 'Documentation for ClimaViz.jl',
   lastUpdated: true,
@@ -48,7 +48,7 @@ export default defineConfig({
   
   vite: {
     define: {
-      __DEPLOY_ABSPATH__: JSON.stringify('/ClimaViz.jl'),
+      __DEPLOY_ABSPATH__: JSON.stringify('/clima.github.io/ClimaViz.jl'),
     },
     resolve: {
       alias: {
