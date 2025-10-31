@@ -22,7 +22,7 @@ makedocs(;
     warnonly = [:missing_docs],
 )
 
-deploydocs(;
+DocumenterVitepress.deploydocs(;
     repo="https://github.com/CliMA/ClimaViz.jl",
     push_preview = true,
 )
