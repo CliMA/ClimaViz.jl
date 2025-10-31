@@ -3,9 +3,8 @@ export layout
 function layout(var_menu, reduction_menu, period_menu, time_slider, height_slider, play_button, speed_slider,
                 fig, fig_profile, fig_timeseries, show_height, profile_lines, profile_hlines,
                 time_value_label, height_value_label, speed_value_label)
-    label_style = Bonito.Styles("font-size" => "1.5rem")
-    header_style = Bonito.Styles("font-size" => "2.5rem", "text-align" => "center")
-    value_style = Bonito.Styles("font-size" => "1.5rem") #, "margin-left" => "10px", "min-width" => "80px")
+    label_style = Bonito.Styles("font-size" => "1.2rem")
+    header_style = Bonito.Styles("font-size" => "2rem", "text-align" => "center")
 
     # Create height row with value display
     height_label = Bonito.DOM.h1("Height: "; style = label_style)
@@ -15,7 +14,7 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
         height_value_label;
     )
 
-    # Animation control row (play button on left, speed slider on right) with value display
+    # Animation control row
     animation_row = Bonito.Row(
         play_button,
         Bonito.DOM.h1("Speed: "; style = label_style),
@@ -23,9 +22,10 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
         speed_value_label;
     )
 
+    # Menu card (no overlay, in sidebar)
     menu_card = Bonito.Card(
         Bonito.Col(
-                   Bonito.DOM.h1("Menu: "; style = header_style),
+            Bonito.DOM.h1("Menu"; style = header_style),
             Bonito.Row(
                 Bonito.DOM.h1("Variable: "; style = label_style),
                 var_menu;
@@ -47,11 +47,8 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
             animation_row;
             height = "auto"
         );
-        shadow_size = "0"  # Remove shadow
+        shadow_size = "0"
     )
-
-    # Main visualization card with map
-    map_card = Bonito.Card(fig; shadow_size = "0")
 
     # Profile card
     profile_card = Bonito.Card(fig_profile; shadow_size = "0")
@@ -59,22 +56,22 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
     # Timeseries card
     timeseries_card = Bonito.Card(fig_timeseries; shadow_size = "0")
 
-    # Profile and timeseries side by side, centered
-    analysis_row = Bonito.Card(
-        Bonito.Row(
-            profile_card,
-            timeseries_card;
-        );
-        shadow_size = "0"
+    # Left sidebar with all controls stacked vertically
+    left_sidebar = Bonito.Col(
+        menu_card,
+        profile_card,
+        timeseries_card;
+        height = "100vh"
     )
 
-    # Main grid layout
+    # Map card
+    map_card = Bonito.Card(fig; shadow_size = "0")
+
+    # Main layout: sidebar on left, map on right with minimal gap
     Bonito.Grid(
-        menu_card,
-        Bonito.Col(
-            map_card,
-            analysis_row;
-        );
-        columns = "15% 85%",
+        left_sidebar,
+        map_card;
+        columns = "auto 1fr",
+        gap = "5px"
     )
 end

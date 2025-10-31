@@ -2,16 +2,21 @@
 function setup_mouse_click_handler(fig, state::AppState)
     on(events(fig).mousebutton) do event
         if event.button == Mouse.left && event.action == Mouse.press
+            # mouseposition gives coordinates in axis data space (handles CSS scaling)
             mp = mouseposition(state.ax)
+
+            println("\n=== MOUSE CLICK DEBUG ===")
+            println("mouseposition: $mp")
+
+            # Transform from projection coordinates (meters) to lon/lat
             trans = Proj.Transformation(state.ax.dest[], state.ax.source[]; always_xy=true)
             lonlat = trans(mp)
 
+            println("Transformed lon/lat: lon=$(lonlat[1]), lat=$(lonlat[2])")
+            println("=========================\n")
+
             state.lon_profile[] = lonlat[1]
             state.lat_profile[] = lonlat[2]
-
-            println("\n=== MOUSE CLICK DEBUG ===")
-            println("Clicked at (lon, lat): $lonlat")
-            println("Variable has height: ", has_height(state.var[]))
 
             # Update profile if variable has height
             if has_height(state.var[])
