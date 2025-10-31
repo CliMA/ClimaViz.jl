@@ -1,2 +1,5 @@
 /data
 Manifest.toml
+docs/build/
+docs/node_modules/
+docs/package-lock.json

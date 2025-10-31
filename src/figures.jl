@@ -18,12 +18,12 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
     # Surface plot
     p = surface!(ax, lon, lat, var_sliced,
                  colorrange = limits,
-                 lowclip = (:black, 0.7),
-                 highclip = (:yellow, 0.8),
+                 lowclip = (:black, 0.8),
+                 highclip = (:yellow, 0.9),
                  shading = NoShading,
                  colormap = :thermal,
                  transparency = true,
-                 alpha = 0.8)
+                 alpha = 0.9)
 
     lines!(ax, GeoMakie.coastlines(), color = :black)
 
