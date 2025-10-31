@@ -68,7 +68,7 @@ Then run the dashboard command and access it on your local browser.
   
 
 
-<Badge type="info" class="source-link" text="source"><a href="https://github.com/CliMA/ClimaViz.jl/blob/fa43d4d56136f4bfe94ab4ad2078b688fc707a0f/src/dashboard.jl#L1-L44" target="_blank" rel="noreferrer">source</a></Badge>
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/CliMA/ClimaViz.jl/blob/5085ff050734811d760c717798eebd1dec982688/src/dashboard.jl#L1-L44" target="_blank" rel="noreferrer">source</a></Badge>
 
 </details>
 
