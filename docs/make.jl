@@ -10,7 +10,7 @@ makedocs(;
     authors="AlexisRenchon <a.renchon@gmail.com>",
     sitename="ClimaViz.jl",
     format=DocumenterVitepress.MarkdownVitepress(
-        repo = "https://github.com/CliMA/ClimaViz.jl",
+        repo = "github.com/CliMA/ClimaViz.jl",
         devurl = "dev",
     ),
     pages=[
@@ -23,6 +23,6 @@ makedocs(;
 )
 
 DocumenterVitepress.deploydocs(;
-    repo="https://github.com/CliMA/ClimaViz.jl",
+    repo="github.com/CliMA/ClimaViz.jl",
     push_preview = true,
 )
