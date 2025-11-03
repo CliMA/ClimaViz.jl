@@ -372,3 +372,143 @@ function setup_play_handler(play_button, time_slider, state::AppState)
         end
     end
 end
+
+# Handle dark mode toggle
+function setup_dark_mode_handler(state::AppState, session)
+    # Set up JavaScript callback for CSS changes
+    Bonito.onjs(session, state.dark_mode, Bonito.js"""
+    function (is_dark) {
+        if (is_dark) {
+            document.body.style.backgroundColor = 'black';
+            document.body.style.color = 'white';
+            // Update all cards
+            document.querySelectorAll('.card').forEach(card => {
+                card.style.backgroundColor = 'black';
+                card.style.color = 'white';
+                card.style.borderColor = 'black';
+            });
+            // Update all text elements except inputs/checkboxes
+            document.querySelectorAll('h1, label, span, p').forEach(el => {
+                el.style.color = 'white';
+            });
+            // Update input elements (sliders, dropdowns, etc.) - keep them light for visibility
+            document.querySelectorAll('input, select').forEach(input => {
+                input.style.backgroundColor = '#333';
+                input.style.color = 'white';
+                input.style.borderColor = '#555';
+            });
+            // Update Makie canvas containers (figure backgrounds)
+            document.querySelectorAll('canvas').forEach(canvas => {
+                // Set the canvas parent background
+                if (canvas.parentElement) {
+                    canvas.parentElement.style.backgroundColor = 'black';
+                }
+                // Also check grandparent
+                if (canvas.parentElement && canvas.parentElement.parentElement) {
+                    canvas.parentElement.parentElement.style.backgroundColor = 'black';
+                }
+            });
+            // Target any div that might contain the figures
+            document.querySelectorAll('div').forEach(div => {
+                if (div.querySelector('canvas')) {
+                    div.style.backgroundColor = 'black';
+                }
+            });
+        } else {
+            document.body.style.backgroundColor = 'white';
+            document.body.style.color = 'black';
+            // Update all cards
+            document.querySelectorAll('.card').forEach(card => {
+                card.style.backgroundColor = 'white';
+                card.style.color = 'black';
+                card.style.borderColor = '#e0e0e0';
+            });
+            // Update all text elements
+            document.querySelectorAll('h1, label, span, p').forEach(el => {
+                el.style.color = 'black';
+            });
+            // Reset input elements
+            document.querySelectorAll('input, select').forEach(input => {
+                input.style.backgroundColor = '';
+                input.style.color = '';
+                input.style.borderColor = '';
+            });
+            // Update Makie canvas containers (figure backgrounds)
+            document.querySelectorAll('canvas').forEach(canvas => {
+                // Set the canvas parent background
+                if (canvas.parentElement) {
+                    canvas.parentElement.style.backgroundColor = 'white';
+                }
+                // Also check grandparent
+                if (canvas.parentElement && canvas.parentElement.parentElement) {
+                    canvas.parentElement.parentElement.style.backgroundColor = 'white';
+                }
+            });
+            // Target any div that might contain the figures
+            document.querySelectorAll('div').forEach(div => {
+                if (div.querySelector('canvas')) {
+                    div.style.backgroundColor = 'white';
+                }
+            });
+        }
+    }
+    """)
+
+    # Julia-side updates for Makie plots
+    on(state.dark_mode) do is_dark
+        println("Dark mode: ", is_dark)
+
+        if is_dark
+            # Dark mode colors
+            bg_color = :black
+            text_color = :white
+            line_color = :white
+            # Convert to RGBA for scene backgroundcolor
+            bg_rgba = RGBf(0, 0, 0)
+        else
+            # Light mode colors
+            bg_color = :white
+            text_color = :black
+            line_color = :black
+            # Convert to RGBA for scene backgroundcolor
+            bg_rgba = RGBf(1, 1, 1)
+        end
+
+        # Update figure background colors directly (need RGBA type)
+        state.fig.scene.backgroundcolor[] = bg_rgba
+        state.fig_profile.scene.backgroundcolor[] = bg_rgba
+        state.fig_timeseries.scene.backgroundcolor[] = bg_rgba
+
+        # Update main figure (map) - GeoAxis only supports title color
+        state.ax.titlecolor = text_color
+
+        # Update coastlines color
+        state.coastlines_plot.color = line_color
+
+        # Update colorbar text colors
+        state.colorbar.labelcolor = text_color
+        state.colorbar.ticklabelcolor = text_color
+
+        # Update profile axis
+        state.ax_profile.backgroundcolor = bg_color
+        state.ax_profile.titlecolor = text_color
+        state.ax_profile.xlabelcolor = text_color
+        state.ax_profile.ylabelcolor = text_color
+        state.ax_profile.xticklabelcolor = text_color
+        state.ax_profile.yticklabelcolor = text_color
+
+        # Update profile lines color
+        state.profile_lines.color = line_color
+
+        # Update timeseries axis
+        state.ax_timeseries.backgroundcolor = bg_color
+        state.ax_timeseries.titlecolor = text_color
+        state.ax_timeseries.xlabelcolor = text_color
+        state.ax_timeseries.ylabelcolor = text_color
+        state.ax_timeseries.xticklabelcolor = text_color
+        state.ax_timeseries.yticklabelcolor = text_color
+
+        # Update timeseries lines color
+        state.timeseries_lines.color = line_color
+    end
+end

@@ -47,7 +47,7 @@ function dashboard(path)
         close(server)
     end
 
-    app = Bonito.App(title="CliMA dashboard") do
+    app = Bonito.App(title="CliMA dashboard") do session
         # Load simulation data
         simdir = ClimaAnalysis.SimDir(path)
         vars = collect(keys(simdir.vars))
@@ -100,6 +100,10 @@ function dashboard(path)
 
         play_button = Bonito.Button("Play")
 
+        # Create dark mode checkbox
+        dark_mode_checkbox = Bonito.Checkbox(false)
+        dark_mode = dark_mode_checkbox.value
+
         # Create value labels
         value_style = Bonito.Styles("font-size" => "1.5rem")
         time_value_text = Observable(Dates.format(dates_array[time_selected[]], "u yyyy"))
@@ -137,14 +141,14 @@ function dashboard(path)
         profile_title = Observable(profile_title_string(var[], dates_array, time_selected[], lon_profile[], lat_profile[]))
         timeseries_title = Observable(timeseries_title_string(var[], heights, height_selected[], lon_profile[], lat_profile[]))
 
-        # Create figures
-        fig, ax, title = create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile)
+        # Create figures (with white background initially)
+        fig, ax, title, coastlines_plot, cbar = create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
 
         fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs =
-            create_profile_figure(var, heights, profile, profile_limits, current_height, profile_title, time_selected)
+            create_profile_figure(var, heights, profile, profile_limits, current_height, profile_title, time_selected, :white)
 
-        fig_timeseries, ax_timeseries, timeseries_ylabel, current_time_index, n_ticks =
-            create_timeseries_figure(var, dates_array, timeseries, timeseries_title, time_selected)
+        fig_timeseries, ax_timeseries, timeseries_ylabel, current_time_index, n_ticks, timeseries_lines =
+            create_timeseries_figure(var, dates_array, timeseries, timeseries_title, time_selected, :white)
 
         # Create AppState to bundle all state
         state = AppState(
@@ -154,7 +158,9 @@ function dashboard(path)
             timeseries, timeseries_title, timeseries_ylabel, current_time_index,
             time_selected, height_selected, speed_selected,
             time_value_text, height_value_text, speed_value_text,
-            ax, ax_profile, ax_timeseries, profile_lines, profile_hlines,
+            dark_mode, Observable(:white),  # fig_bg_color (not used anymore but kept for compatibility)
+            ax, ax_profile, ax_timeseries, profile_lines, profile_hlines, timeseries_lines, coastlines_plot, cbar,
+            fig, fig_profile, fig_timeseries,
             n_ticks,
             false  # updating flag
         )
@@ -179,11 +185,12 @@ function dashboard(path)
         setup_height_handler(height_slider, state)
         setup_speed_handler(speed_slider, state)
         setup_play_handler(play_button, time_slider, state)
+        setup_dark_mode_handler(state, session)
 
         # Return layout
         return layout(var_menu, reduction_menu, period_menu, time_slider, height_slider, play_button, speed_slider,
                      fig, fig_profile, fig_timeseries, has_height(var[]), profile_lines, profile_hlines,
-                     time_value_label, height_value_label, speed_value_label)
+                     time_value_label, height_value_label, speed_value_label, dark_mode_checkbox)
     end
 
     IP = "127.0.0.1"

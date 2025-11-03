@@ -1,9 +1,9 @@
 export create_main_figure, create_profile_figure, create_timeseries_figure
 
 # Create main map figure with surface plot
-function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile)
+function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, bg_color)
     # Large figure that fills screen naturally (minimal CSS scaling)
-    fig = Figure(size = (3200, 1800))
+    fig = Figure(size = (3200, 1800), backgroundcolor = bg_color, figure_padding = 0)
     title = Observable("title")
 
     # Equirectangular projection
@@ -25,7 +25,7 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
                  transparency = true,
                  alpha = 0.9)
 
-    lines!(ax, GeoMakie.coastlines(), color = :black)
+    coastlines_plot = lines!(ax, GeoMakie.coastlines(), color = :black)
 
     # Add marker on map showing current location
     scatter!(ax, lon_profile, lat_profile,
@@ -42,7 +42,7 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
     ))
 
     # Horizontal colorbar at bottom-right inside the map
-    Colorbar(
+    cbar = Colorbar(
              fig[1, 1],
              p,
              vertical = false,
@@ -68,14 +68,14 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
         )
     end
 
-    return fig, ax, title
+    return fig, ax, title, coastlines_plot, cbar
 end
 
 # Create vertical profile figure
 function create_profile_figure(var, heights, profile, profile_limits, current_height,
-                               profile_title, time_selected)
+                               profile_title, time_selected, bg_color)
     # 50% bigger: 400*1.5 = 600, 350*1.5 = 525
-    fig_profile = Figure(size = (600, 525))
+    fig_profile = Figure(size = (600, 525), backgroundcolor = bg_color, figure_padding = 0)
     profile_xlabel = Observable(string(ClimaAnalysis.short_name(var[]), " [", ClimaAnalysis.units(var[]), "]"))
 
     ax_profile = Axis(fig_profile[1, 1],
@@ -101,9 +101,9 @@ function create_profile_figure(var, heights, profile, profile_limits, current_he
 end
 
 # Create time series figure
-function create_timeseries_figure(var, dates_array, timeseries, timeseries_title, time_selected)
+function create_timeseries_figure(var, dates_array, timeseries, timeseries_title, time_selected, bg_color)
     # 50% bigger: 400*1.5 = 600, 350*1.5 = 525
-    fig_timeseries = Figure(size = (600, 525))
+    fig_timeseries = Figure(size = (600, 525), backgroundcolor = bg_color, figure_padding = 0)
     timeseries_ylabel = Observable(string(ClimaAnalysis.short_name(var[]), " [", ClimaAnalysis.units(var[]), "]"))
 
     ax_timeseries = Axis(fig_timeseries[1, 1],
@@ -119,7 +119,7 @@ function create_timeseries_figure(var, dates_array, timeseries, timeseries_title
 
     # Use numeric indices for plotting
     time_indices = 1:length(dates_array)
-    lines!(ax_timeseries, time_indices, timeseries, color = :black, linewidth = 2)
+    timeseries_lines = lines!(ax_timeseries, time_indices, timeseries, color = :black, linewidth = 2)
 
     # Add vertical line showing current time
     current_time_index = Observable(time_selected[])
@@ -133,5 +133,5 @@ function create_timeseries_figure(var, dates_array, timeseries, timeseries_title
 
     autolimits!(ax_timeseries)
 
-    return fig_timeseries, ax_timeseries, timeseries_ylabel, current_time_index, n_ticks
+    return fig_timeseries, ax_timeseries, timeseries_ylabel, current_time_index, n_ticks, timeseries_lines
 end

@@ -2,7 +2,7 @@ export layout
 
 function layout(var_menu, reduction_menu, period_menu, time_slider, height_slider, play_button, speed_slider,
                 fig, fig_profile, fig_timeseries, show_height, profile_lines, profile_hlines,
-                time_value_label, height_value_label, speed_value_label)
+                time_value_label, height_value_label, speed_value_label, dark_mode_checkbox)
     label_style = Bonito.Styles("font-size" => "1.2rem")
     header_style = Bonito.Styles("font-size" => "2rem", "text-align" => "center")
 
@@ -22,10 +22,17 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
         speed_value_label;
     )
 
+    # Dark mode row
+    dark_mode_row = Bonito.Row(
+        Bonito.DOM.h1("Dark Mode: "; style = label_style),
+        dark_mode_checkbox;
+    )
+
     # Menu card (no overlay, in sidebar)
     menu_card = Bonito.Card(
         Bonito.Col(
             Bonito.DOM.h1("Menu"; style = header_style),
+            dark_mode_row,
             Bonito.Row(
                 Bonito.DOM.h1("Variable: "; style = label_style),
                 var_menu;
