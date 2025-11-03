@@ -6,7 +6,7 @@ export layout
 # Just copy paste it into your LLM and ask what you want, explaining what are the
 # arguments.
 
-function layout(menu_var, menu_iter, menu_m, menu_season, checkbox_3d, loaded_data, maps_2d, maps_3d)
+function layout(menu_var, menu_iter, menu_m, menu_season, loaded_data, maps)
     DOM.div(
             style="display: grid; grid-template-columns: 300px 380px 1fr; gap: 20px; width: 100%;",
             # Left column
@@ -27,12 +27,7 @@ function layout(menu_var, menu_iter, menu_m, menu_season, checkbox_3d, loaded_da
                                  DOM.div("Variable", menu_var),
                                  DOM.div("Iteration", menu_iter),
                                  DOM.div("Ensemble", menu_m),
-                                 DOM.div("Season", menu_season),
-                                 DOM.div(
-                                        style="display: flex; align-items: center; gap: 10px;",
-                                        checkbox_3d,
-                                        DOM.label("3D globe")
-                                       )
+                                 DOM.div("Season", menu_season)
                                 )
                         ),
                     Card(
@@ -249,7 +244,7 @@ function layout(menu_var, menu_iter, menu_m, menu_season, checkbox_3d, loaded_da
                         )
                    ),
 
-            # Right column (maps) - toggle between 2D and 3D
-            @lift($(checkbox_3d.value) ? maps_3d : maps_2d)
+            # Right column (maps)
+            maps
            )
 end
