@@ -54,10 +54,10 @@ function makeapp(path_to_eki_file)
         fig_3d = Figure(size = (2500, 1800), fontsize = 22)
 
         # Setup 3D globe axes
-        ax_y_3d = GM.GlobeAxis(fig_3d[1, 1]; show_axis = false)
-        ax_g_3d = GM.GlobeAxis(fig_3d[1, 2]; show_axis = false)
-        ax_anomalies_3d = GM.GlobeAxis(fig_3d[2, 2]; show_axis = false)
-        ax_gamma_3d = GM.GlobeAxis(fig_3d[3, 2]; show_axis = false)
+        ax_y_3d = GM.GlobeAxis(fig_3d[1, 1]; show_axis = false, title = "Era5 data (y)")
+        ax_g_3d = GM.GlobeAxis(fig_3d[1, 2]; show_axis = false, title = "ClimaLand (g)")
+        ax_anomalies_3d = GM.GlobeAxis(fig_3d[2, 2]; show_axis = false, title = "Anomalies: ClimaLand (g) - Era5 (y)")
+        ax_gamma_3d = GM.GlobeAxis(fig_3d[3, 2]; show_axis = false, title = "Noise variance (Γ)")
 
         ax_sm_3d = Axis(fig_3d[2, 1],
                      title = "Seasonal means",
