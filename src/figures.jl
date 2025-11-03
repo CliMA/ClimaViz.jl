@@ -79,6 +79,7 @@ function create_profile_figure(var, heights, profile, profile_limits, current_he
     profile_xlabel = Observable(string(ClimaAnalysis.short_name(var[]), " [", ClimaAnalysis.units(var[]), "]"))
 
     # Create a Box in the figure layout to control visibility
+    # The Box acts as a background element at [1, 1], overlaid by the Axis
     profile_box = Box(fig_profile[1, 1], visible = has_height(var[]))
 
     ax_profile = Axis(fig_profile[1, 1],
@@ -99,7 +100,6 @@ function create_profile_figure(var, heights, profile, profile_limits, current_he
     xlims!(ax_profile, profile_limits[])
     profile_hlines = hlines!(ax_profile, current_height, color = :grey, linestyle = :dash, linewidth = 2, visible = has_height(var[]))
 
-    fig_profile
     return fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs, profile_box
 end
 
