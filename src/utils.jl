@@ -69,6 +69,8 @@ mutable struct AppState
     time_value_text::Observable
     height_value_text::Observable
     speed_value_text::Observable
+    dark_mode::Observable
+    fig_bg_color::Observable
 
     # Axes and visual elements
     ax::Any
@@ -76,6 +78,14 @@ mutable struct AppState
     ax_timeseries::Any
     profile_lines::Any
     profile_hlines::Any
+    timeseries_lines::Any
+    coastlines_plot::Any
+    colorbar::Any
+
+    # Figures for background color updates
+    fig::Any
+    fig_profile::Any
+    fig_timeseries::Any
 
     # Other
     n_ticks::Int
