@@ -144,7 +144,7 @@ function dashboard(path)
         # Create figures (with white background initially)
         fig, ax, title, coastlines_plot, cbar = create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
 
-        fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs =
+        fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs, profile_box =
             create_profile_figure(var, heights, profile, profile_limits, current_height, profile_title, time_selected, :white)
 
         fig_timeseries, ax_timeseries, timeseries_ylabel, current_time_index, n_ticks, timeseries_lines =
@@ -159,7 +159,7 @@ function dashboard(path)
             time_selected, height_selected, speed_selected,
             time_value_text, height_value_text, speed_value_text,
             dark_mode, Observable(:white),  # fig_bg_color (not used anymore but kept for compatibility)
-            ax, ax_profile, ax_timeseries, profile_lines, profile_hlines, timeseries_lines, coastlines_plot, cbar,
+            ax, ax_profile, ax_timeseries, profile_lines, profile_hlines, timeseries_lines, coastlines_plot, cbar, profile_box,
             fig, fig_profile, fig_timeseries,
             n_ticks,
             false  # updating flag

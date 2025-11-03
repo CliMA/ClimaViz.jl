@@ -81,6 +81,7 @@ mutable struct AppState
     timeseries_lines::Any
     coastlines_plot::Any
     colorbar::Any
+    profile_box::Any
 
     # Figures for background color updates
     fig::Any
