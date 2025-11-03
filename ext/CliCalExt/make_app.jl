@@ -5,6 +5,9 @@ function makeapp(path_to_eki_file)
     loaded_data = load_and_process_data(path_to_eki_file)
 
     app = App(title="CliCal v0.3.0") do
+        # Checkbox to toggle between 2D and 3D
+        checkbox_3d = Checkbox(false)
+        
         # Initialize figure for 2D view
         fig_2d = Figure(size = (2500, 1800), fontsize = 22)
 
@@ -51,10 +54,10 @@ function makeapp(path_to_eki_file)
         fig_3d = Figure(size = (2500, 1800), fontsize = 22)
 
         # Setup 3D globe axes
-        ax_y_3d = GM.GlobeAxis(fig_3d[1, 1]; show_axis = false, title = "Era5 data (y)")
-        ax_g_3d = GM.GlobeAxis(fig_3d[1, 2]; show_axis = false, title = "ClimaLand (g)")
-        ax_anomalies_3d = GM.GlobeAxis(fig_3d[2, 2]; show_axis = false, title = "Anomalies: ClimaLand (g) - Era5 (y)")
-        ax_gamma_3d = GM.GlobeAxis(fig_3d[3, 2]; show_axis = false, title = "Noise variance (Γ)")
+        ax_y_3d = GM.GlobeAxis(fig_3d[1, 1]; show_axis = false)
+        ax_g_3d = GM.GlobeAxis(fig_3d[1, 2]; show_axis = false)
+        ax_anomalies_3d = GM.GlobeAxis(fig_3d[2, 2]; show_axis = false)
+        ax_gamma_3d = GM.GlobeAxis(fig_3d[3, 2]; show_axis = false)
 
         ax_sm_3d = Axis(fig_3d[2, 1],
                      title = "Seasonal means",
@@ -75,7 +78,6 @@ function makeapp(path_to_eki_file)
         menu_iter = Dropdown(1:loaded_data["n_iterations"])
         menu_m = Dropdown(1:loaded_data["n_ensembles"])
         menu_season = Dropdown(["DJF", "MAM", "JJA", "SON"])
-        checkbox_3d = Checkbox(false)
 
         year_x = @lift(2008+$(menu_iter.value))
         title_fig = @lift("$($(menu_season.value)) $($(menu_var.value)), iteration $($(menu_iter.value)), ensemble $($(menu_m.value)), year $($(year_x))")
