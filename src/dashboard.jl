@@ -104,6 +104,13 @@ function dashboard(path)
         dark_mode_checkbox = Bonito.Checkbox(false)
         dark_mode = dark_mode_checkbox.value
 
+        # Create 3D globe checkbox
+        globe_3d_checkbox = Bonito.Checkbox(false)
+        globe_3d = globe_3d_checkbox.value
+
+        # Create observable for showing height dimension
+        show_height = Observable(has_height(var[]))
+
         # Create value labels
         value_style = Bonito.Styles("font-size" => "1.5rem")
         time_value_text = Observable(Dates.format(dates_array[time_selected[]], "u yyyy"))
@@ -143,6 +150,9 @@ function dashboard(path)
 
         # Create figures (with white background initially)
         fig, ax, title, coastlines_plot, cbar = create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
+        
+        # Create 3D globe figure
+        fig_3d, ax_3d, title_3d, coastlines_plot_3d, cbar_3d = create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
 
         fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs =
             create_profile_figure(var, heights, profile, profile_limits, current_height, profile_title, time_selected, :white)
@@ -159,6 +169,7 @@ function dashboard(path)
             time_selected, height_selected, speed_selected,
             time_value_text, height_value_text, speed_value_text,
             dark_mode, Observable(:white),  # fig_bg_color (not used anymore but kept for compatibility)
+            show_height,
             ax, ax_profile, ax_timeseries, profile_lines, profile_hlines, timeseries_lines, coastlines_plot, cbar,
             fig, fig_profile, fig_timeseries,
             n_ticks,
@@ -176,6 +187,11 @@ function dashboard(path)
             update_title(state, time_selected[])
         end
 
+        # Synchronize 3D title with 2D title
+        on(title) do t
+            title_3d[] = t
+        end
+
         # Set up all event handlers - pass heights_obs to handlers that need it
         setup_mouse_click_handler(fig, state)
         setup_variable_handler(var_menu, reduction_menu, period_menu, height_slider, state, heights_obs)
@@ -187,10 +203,39 @@ function dashboard(path)
         setup_play_handler(play_button, time_slider, state)
         setup_dark_mode_handler(state, session)
 
+        # Setup zoom for 3D globe when first displayed
+        zoomed_3d = Ref(false)
+        on(globe_3d) do is_3d
+            if is_3d && !zoomed_3d[]
+                # Defer zoom slightly to ensure scene is rendered
+                sleep(0.1)
+                try
+                    zoom!(ax_3d.scene, 2.5)
+                    zoomed_3d[] = true
+                catch e
+                    println("Warning: Could not apply zoom to 3D globe: ", e)
+                end
+            end
+        end
+
+        # Also update 3D figure background when dark mode changes
+        on(dark_mode) do is_dark
+            bg_rgba = is_dark ? RGBf(0, 0, 0) : RGBf(1, 1, 1)
+            text_color = is_dark ? :white : :black
+            line_color = is_dark ? :white : :black
+            fig_3d.scene.backgroundcolor[] = bg_rgba
+            ax_3d.titlecolor = text_color
+            # Update 3D colorbar text colors
+            cbar_3d.labelcolor = text_color
+            cbar_3d.ticklabelcolor = text_color
+            # Update 3D coastlines color
+            coastlines_plot_3d.color = line_color
+        end
+
         # Return layout
         return layout(var_menu, reduction_menu, period_menu, time_slider, height_slider, play_button, speed_slider,
-                     fig, fig_profile, fig_timeseries, has_height(var[]), profile_lines, profile_hlines,
-                     time_value_label, height_value_label, speed_value_label, dark_mode_checkbox)
+                     fig, fig_3d, fig_profile, fig_timeseries, show_height, profile_lines, profile_hlines,
+                     time_value_label, height_value_label, speed_value_label, dark_mode_checkbox, globe_3d_checkbox, globe_3d, dark_mode)
     end
 
     IP = "127.0.0.1"

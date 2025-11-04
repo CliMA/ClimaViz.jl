@@ -1,8 +1,8 @@
 export layout
 
 function layout(var_menu, reduction_menu, period_menu, time_slider, height_slider, play_button, speed_slider,
-                fig, fig_profile, fig_timeseries, show_height, profile_lines, profile_hlines,
-                time_value_label, height_value_label, speed_value_label, dark_mode_checkbox)
+                fig, fig_3d, fig_profile, fig_timeseries, show_height, profile_lines, profile_hlines,
+                time_value_label, height_value_label, speed_value_label, dark_mode_checkbox, globe_3d_checkbox, globe_3d, dark_mode)
     label_style = Bonito.Styles("font-size" => "1.2rem")
     header_style = Bonito.Styles("font-size" => "2rem", "text-align" => "center")
 
@@ -28,11 +28,18 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
         dark_mode_checkbox;
     )
 
+    # 3D globe row
+    globe_3d_row = Bonito.Row(
+        Bonito.DOM.h1("3D Globe: "; style = label_style),
+        globe_3d_checkbox;
+    )
+
     # Menu card (no overlay, in sidebar)
     menu_card = Bonito.Card(
         Bonito.Col(
             Bonito.DOM.h1("Menu"; style = header_style),
             dark_mode_row,
+            globe_3d_row,
             Bonito.Row(
                 Bonito.DOM.h1("Variable: "; style = label_style),
                 var_menu;
@@ -57,22 +64,33 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
         shadow_size = "0"
     )
 
-    # Profile card
-    profile_card = Bonito.Card(fig_profile; shadow_size = "0")
-
     # Timeseries card
     timeseries_card = Bonito.Card(fig_timeseries; shadow_size = "0")
+
+    # Create an empty figure for when there's no height dimension
+    fig_empty = Figure(size = (600, 525), backgroundcolor = :white, figure_padding = 0)
+
+    # Update empty figure background when dark mode changes
+    on(dark_mode) do is_dark
+        bg_rgba = is_dark ? RGBf(0, 0, 0) : RGBf(1, 1, 1)
+        fig_empty.scene.backgroundcolor[] = bg_rgba
+    end
+
+    # Use observable to conditionally show profile figure (similar to 2D/3D map switching)
+    profile_fig_display = @lift($(show_height) ? fig_profile : fig_empty)
+    profile_card = Bonito.Card(profile_fig_display; shadow_size = "0")
 
     # Left sidebar with all controls stacked vertically
     left_sidebar = Bonito.Col(
         menu_card,
-        profile_card,
-        timeseries_card;
+        timeseries_card,
+        profile_card;
         height = "100vh"
     )
 
-    # Map card
-    map_card = Bonito.Card(fig; shadow_size = "0")
+    # Map card - toggle between 2D and 3D based on checkbox
+    map_fig = @lift($(globe_3d) ? fig_3d : fig)
+    map_card = Bonito.Card(map_fig; shadow_size = "0")
 
     # Main layout: sidebar on left, map on right with minimal gap
     Bonito.Grid(

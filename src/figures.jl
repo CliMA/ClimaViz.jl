@@ -1,4 +1,4 @@
-export create_main_figure, create_profile_figure, create_timeseries_figure
+export create_main_figure, create_main_figure_3d, create_profile_figure, create_timeseries_figure
 
 # Create main map figure with surface plot
 function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, bg_color)
@@ -69,6 +69,86 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
     end
 
     return fig, ax, title, coastlines_plot, cbar
+end
+
+# Create main 3D globe figure
+function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, bg_color)
+    # Large figure that fills screen naturally
+    fig = Figure(size = (3200, 1800), backgroundcolor = bg_color, figure_padding = 0)
+    title = Observable("title")
+
+    # Use GlobeAxis for 3D globe with title
+    ax = GeoMakie.GlobeAxis(fig[1, 1]; show_axis = false, title = title, titlesize = 24.0f0, titlevisible = true)
+
+    # Load Earth image for background
+    earth_img = FileIO.load(download("https://upload.wikimedia.org/wikipedia/commons/5/56/Blue_Marble_Next_Generation_%2B_topography_%2B_bathymetry.jpg"))
+
+    # Add Earth image as base surface at z=0
+    surface!(ax,
+             -180..180, -90..90,
+             zeros(axes(rotr90(earth_img)));
+             shading = NoShading,
+             color = rotr90(earth_img),
+             backlight = 1.5f0,
+            )
+
+    # Surface plot on globe at elevated z-level (above Earth surface)
+    p = surface!(ax, lon, lat, var_sliced,
+                 colorrange = limits,
+                 lowclip = (:black, 0.8),
+                 highclip = (:yellow, 0.9),
+                 shading = NoShading,
+                 colormap = :thermal,
+                 transparency = true,
+                 alpha = 0.9,
+                 zlevel = 20_000)
+
+    # Add coastlines for 3D globe (black lines, will change with dark mode)
+    coastlines_plot_3d = lines!(ax, GeoMakie.coastlines(), color = :black)
+
+    # Add marker on map showing current location (at elevated z-level to be visible above data)
+    scatter!(ax, lon_profile, lat_profile,
+            color = (:red, 0.7),
+            markersize = 30,
+            marker = :circle,
+            zlevel = 25_000)
+
+    # Create colorbar label with variable name and units
+    colorbar_label = Observable(string(
+        ClimaAnalysis.short_name(var[]),
+        " [",
+        ClimaAnalysis.units(var[]),
+        "]"
+    ))
+
+    # Horizontal colorbar at bottom-right inside the map
+    cbar = Colorbar(
+             fig[1, 1],
+             p,
+             vertical = false,
+             colorrange = limits,
+             width = Relative(0.25),
+             height = 20,
+             ticklabelsize = 24.0,
+             label = colorbar_label,
+             labelsize = 28.0,
+             halign = :right,
+             valign = :bottom,
+             tellheight = false,
+             tellwidth = false
+            )
+
+    # Update colorbar label when variable changes
+    on(var) do v
+        colorbar_label[] = string(
+            ClimaAnalysis.short_name(v),
+            " [",
+            ClimaAnalysis.units(v),
+            "]"
+        )
+    end
+
+    return fig, ax, title, coastlines_plot_3d, cbar
 end
 
 # Create vertical profile figure

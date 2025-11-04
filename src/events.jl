@@ -196,6 +196,9 @@ function update_for_new_variable(state::AppState, new_var, heights_new, heights_
     # Update the variable in state
     state.var[] = new_var
 
+    # Update show_height based on new variable
+    state.show_height[] = has_height(new_var)
+
     # Update heights for new variable
     empty!(state.heights)
     append!(state.heights, heights_new)
