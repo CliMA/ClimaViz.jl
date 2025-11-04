@@ -77,8 +77,14 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
     end
 
     # Keep both profile and empty figures in DOM, toggle visibility for consistency with map switching
-    profile_style = @lift($(show_height) ? Bonito.Styles("display" => "block") : Bonito.Styles("display" => "none"))
-    empty_style = @lift($(show_height) ? Bonito.Styles("display" => "none") : Bonito.Styles("display" => "block"))
+    # Use Observable with on() callback instead of @lift to avoid synchronous update issues
+    profile_style = Observable(show_height[] ? Bonito.Styles("display" => "block") : Bonito.Styles("display" => "none"))
+    empty_style = Observable(show_height[] ? Bonito.Styles("display" => "none") : Bonito.Styles("display" => "block"))
+    
+    on(show_height) do is_shown
+        profile_style[] = is_shown ? Bonito.Styles("display" => "block") : Bonito.Styles("display" => "none")
+        empty_style[] = is_shown ? Bonito.Styles("display" => "none") : Bonito.Styles("display" => "block")
+    end
     
     profile_div = Bonito.DOM.div(Bonito.Card(fig_profile; shadow_size = "0"); style = profile_style)
     empty_div = Bonito.DOM.div(Bonito.Card(fig_empty; shadow_size = "0"); style = empty_style)
@@ -96,12 +102,22 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
     # Map cards - keep both 2D and 3D in DOM, toggle visibility with CSS for performance
     # This avoids re-creating the 3D figure when switching, making it instant
     # Each div takes full width/height of container, and only one is visible at a time
-    map_2d_style = @lift($(globe_3d) ? 
+    # Use Observable with on() callback instead of @lift to avoid synchronous update issues
+    map_2d_style = Observable(globe_3d[] ? 
         Bonito.Styles("display" => "none") : 
         Bonito.Styles("display" => "block", "width" => "100%", "height" => "100%"))
-    map_3d_style = @lift($(globe_3d) ? 
+    map_3d_style = Observable(globe_3d[] ? 
         Bonito.Styles("display" => "block", "width" => "100%", "height" => "100%") : 
         Bonito.Styles("display" => "none"))
+    
+    on(globe_3d) do is_3d
+        map_2d_style[] = is_3d ? 
+            Bonito.Styles("display" => "none") : 
+            Bonito.Styles("display" => "block", "width" => "100%", "height" => "100%")
+        map_3d_style[] = is_3d ? 
+            Bonito.Styles("display" => "block", "width" => "100%", "height" => "100%") : 
+            Bonito.Styles("display" => "none")
+    end
     
     map_2d_card = Bonito.DOM.div(Bonito.Card(fig; shadow_size = "0"); style = map_2d_style)
     map_3d_card = Bonito.DOM.div(Bonito.Card(fig_3d; shadow_size = "0"); style = map_3d_style)
