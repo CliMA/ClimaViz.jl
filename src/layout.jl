@@ -88,14 +88,18 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
         height = "100vh"
     )
 
-    # Map card - toggle between 2D and 3D based on checkbox
-    map_fig = @lift($(globe_3d) ? fig_3d : fig)
-    map_card = Bonito.Card(map_fig; shadow_size = "0")
+    # Map cards - keep both 2D and 3D in DOM, toggle visibility with CSS for performance
+    # This avoids re-creating the 3D figure when switching, making it instant
+    map_2d_style = @lift($(globe_3d) ? Bonito.Styles("display" => "none") : Bonito.Styles("display" => "block"))
+    map_3d_style = @lift($(globe_3d) ? Bonito.Styles("display" => "block") : Bonito.Styles("display" => "none"))
+    
+    map_2d_card = Bonito.DOM.div(Bonito.Card(fig; shadow_size = "0"); style = map_2d_style)
+    map_3d_card = Bonito.DOM.div(Bonito.Card(fig_3d; shadow_size = "0"); style = map_3d_style)
 
     # Main layout: sidebar on left, map on right with minimal gap
     Bonito.Grid(
         left_sidebar,
-        map_card;
+        Bonito.DOM.div(map_2d_card, map_3d_card);
         columns = "auto 1fr",
         gap = "5px"
     )
