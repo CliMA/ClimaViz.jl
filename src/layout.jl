@@ -99,33 +99,19 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
         height = "100vh"
     )
 
-    # Map cards - keep both 2D and 3D in DOM, toggle visibility with CSS for performance
-    # This avoids re-creating the 3D figure when switching, making it instant
-    # Each div takes full width/height of container, and only one is visible at a time
-    # Use Observable with on() callback instead of @lift to avoid synchronous update issues
-    map_2d_style = Observable(globe_3d[] ? 
-        Bonito.Styles("display" => "none") : 
-        Bonito.Styles("display" => "block", "width" => "100%", "height" => "100%"))
-    map_3d_style = Observable(globe_3d[] ? 
-        Bonito.Styles("display" => "block", "width" => "100%", "height" => "100%") : 
-        Bonito.Styles("display" => "none"))
+    # Map cards - Alternative approach: simpler visibility toggle
+    # Keep both figures in layout, toggle which one is displayed
+    # This approach uses conditional rendering based on observable
+    map_card = Observable(globe_3d[] ? Bonito.Card(fig_3d; shadow_size = "0") : Bonito.Card(fig; shadow_size = "0"))
     
     on(globe_3d) do is_3d
-        map_2d_style[] = is_3d ? 
-            Bonito.Styles("display" => "none") : 
-            Bonito.Styles("display" => "block", "width" => "100%", "height" => "100%")
-        map_3d_style[] = is_3d ? 
-            Bonito.Styles("display" => "block", "width" => "100%", "height" => "100%") : 
-            Bonito.Styles("display" => "none")
+        map_card[] = is_3d ? Bonito.Card(fig_3d; shadow_size = "0") : Bonito.Card(fig; shadow_size = "0")
     end
-    
-    map_2d_card = Bonito.DOM.div(Bonito.Card(fig; shadow_size = "0"); style = map_2d_style)
-    map_3d_card = Bonito.DOM.div(Bonito.Card(fig_3d; shadow_size = "0"); style = map_3d_style)
 
     # Main layout: sidebar on left, map on right with minimal gap
     Bonito.Grid(
         left_sidebar,
-        Bonito.DOM.div(map_2d_card, map_3d_card);
+        map_card;
         columns = "auto 1fr",
         gap = "5px"
     )
