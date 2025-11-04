@@ -95,8 +95,13 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
 
     # Map cards - keep both 2D and 3D in DOM, toggle visibility with CSS for performance
     # This avoids re-creating the 3D figure when switching, making it instant
-    map_2d_style = @lift($(globe_3d) ? Bonito.Styles("display" => "none") : Bonito.Styles("display" => "block"))
-    map_3d_style = @lift($(globe_3d) ? Bonito.Styles("display" => "block") : Bonito.Styles("display" => "none"))
+    # Each div takes full width/height of container, and only one is visible at a time
+    map_2d_style = @lift($(globe_3d) ? 
+        Bonito.Styles("display" => "none") : 
+        Bonito.Styles("display" => "block", "width" => "100%", "height" => "100%"))
+    map_3d_style = @lift($(globe_3d) ? 
+        Bonito.Styles("display" => "block", "width" => "100%", "height" => "100%") : 
+        Bonito.Styles("display" => "none"))
     
     map_2d_card = Bonito.DOM.div(Bonito.Card(fig; shadow_size = "0"); style = map_2d_style)
     map_3d_card = Bonito.DOM.div(Bonito.Card(fig_3d; shadow_size = "0"); style = map_3d_style)
