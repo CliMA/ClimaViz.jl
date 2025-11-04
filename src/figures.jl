@@ -1,4 +1,4 @@
-export create_main_figure, create_main_figure_3d, create_profile_figure, create_timeseries_figure
+export create_main_figure, create_main_figure_3d, create_combined_figure_with_boxes, create_profile_figure, create_timeseries_figure
 
 # Create main map figure with surface plot
 function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, bg_color)
@@ -214,4 +214,114 @@ function create_timeseries_figure(var, dates_array, timeseries, timeseries_title
     autolimits!(ax_timeseries)
 
     return fig_timeseries, ax_timeseries, timeseries_ylabel, current_time_index, n_ticks, timeseries_lines
+end
+
+# Create combined figure with both 2D and 3D using Makie.Box for visibility toggling
+function create_combined_figure_with_boxes(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, bg_color, globe_3d)
+    # Create a single figure
+    fig = Figure(size = (3200, 1800), backgroundcolor = bg_color, figure_padding = 0)
+    title = Observable("title")
+    
+    # Create Box for 2D content at position [1,1]
+    box_2d = Box(fig[1, 1], tellwidth=true, tellheight=true)
+    box_2d.visible = !globe_3d[]  # Initially visible if not in 3D mode
+    
+    # Create 2D axis inside the box
+    ax_2d = GeoAxis(box_2d[1, 1], title = title, titlesize = 24.0f0, dest = "+proj=eqc")
+    hidedecorations!(ax_2d)
+    deactivate_interaction!(ax_2d, :scrollzoom)
+    
+    # 2D Surface plot
+    p_2d = surface!(ax_2d, lon, lat, var_sliced,
+                    colorrange = limits,
+                    lowclip = (:black, 0.8),
+                    highclip = (:yellow, 0.9),
+                    shading = NoShading,
+                    colormap = :thermal,
+                    transparency = true,
+                    alpha = 0.9)
+    
+    coastlines_2d = lines!(ax_2d, GeoMakie.coastlines(), color = :black)
+    scatter!(ax_2d, lon_profile, lat_profile,
+            color = (:red, 0.7),
+            markersize = 30,
+            marker = :circle)
+    
+    # Create Box for 3D content at the same position [1,1]
+    box_3d = Box(fig[1, 1], tellwidth=true, tellheight=true)
+    box_3d.visible = globe_3d[]  # Initially visible if in 3D mode
+    
+    # Create 3D axis inside the box
+    ax_3d = GeoMakie.GlobeAxis(box_3d[1, 1]; show_axis = false, title = title, titlesize = 24.0f0, titlevisible = true)
+    
+    # Load Earth image for 3D globe background
+    earth_img = FileIO.load(download("https://upload.wikimedia.org/wikipedia/commons/5/56/Blue_Marble_Next_Generation_%2B_topography_%2B_bathymetry.jpg"))
+    
+    surface!(ax_3d,
+             -180..180, -90..90,
+             zeros(axes(rotr90(earth_img)));
+             shading = NoShading,
+             color = rotr90(earth_img),
+             backlight = 1.5f0)
+    
+    # 3D Surface plot
+    p_3d = surface!(ax_3d, lon, lat, var_sliced,
+                    colorrange = limits,
+                    lowclip = (:black, 0.8),
+                    highclip = (:yellow, 0.9),
+                    shading = NoShading,
+                    colormap = :thermal,
+                    transparency = true,
+                    alpha = 0.9,
+                    zlevel = 20_000)
+    
+    coastlines_3d = lines!(ax_3d, GeoMakie.coastlines(), color = :black)
+    scatter!(ax_3d, lon_profile, lat_profile,
+            color = (:red, 0.7),
+            markersize = 30,
+            marker = :circle,
+            zlevel = 25_000)
+    
+    # Create colorbar label
+    colorbar_label = Observable(string(
+        ClimaAnalysis.short_name(var[]),
+        " [",
+        ClimaAnalysis.units(var[]),
+        "]"
+    ))
+    
+    # Colorbar (shared between both views)
+    cbar = Colorbar(
+             fig[1, 1],
+             p_2d,  # Use 2D plot for colorbar reference
+             vertical = false,
+             colorrange = limits,
+             width = Relative(0.25),
+             height = 20,
+             ticklabelsize = 24.0,
+             label = colorbar_label,
+             labelsize = 28.0,
+             halign = :right,
+             valign = :bottom,
+             tellheight = false,
+             tellwidth = false
+            )
+    
+    # Update colorbar label when variable changes
+    on(var) do v
+        colorbar_label[] = string(
+            ClimaAnalysis.short_name(v),
+            " [",
+            ClimaAnalysis.units(v),
+            "]"
+        )
+    end
+    
+    # Toggle box visibility based on globe_3d observable
+    on(globe_3d) do is_3d
+        box_2d.visible = !is_3d
+        box_3d.visible = is_3d
+    end
+    
+    return fig, box_2d, box_3d, ax_2d, ax_3d, title, coastlines_2d, coastlines_3d, cbar
 end
