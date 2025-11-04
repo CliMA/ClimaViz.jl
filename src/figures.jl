@@ -77,10 +77,22 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
     fig = Figure(size = (3200, 1800), backgroundcolor = bg_color, figure_padding = 0)
     title = Observable("title")
 
-    # Use GlobeAxis for 3D globe
-    ax = GeoMakie.GlobeAxis(fig[1, 1]; show_axis = false, title = title, titlesize = 24.0f0)
+    # Use GlobeAxis for 3D globe with title
+    ax = GeoMakie.GlobeAxis(fig[1, 1]; show_axis = false, title = title, titlesize = 24.0f0, titlevisible = true)
 
-    # Surface plot on globe
+    # Load Earth image for background
+    earth_img = FileIO.load(download("https://upload.wikimedia.org/wikipedia/commons/5/56/Blue_Marble_Next_Generation_%2B_topography_%2B_bathymetry.jpg"))
+
+    # Add Earth image as base surface at z=0
+    surface!(ax,
+             -180..180, -90..90,
+             zeros(axes(rotr90(earth_img)));
+             shading = NoShading,
+             color = rotr90(earth_img),
+             backlight = 1.5f0,
+            )
+
+    # Surface plot on globe at elevated z-level (above Earth surface)
     p = surface!(ax, lon, lat, var_sliced,
                  colorrange = limits,
                  lowclip = (:black, 0.8),
@@ -88,16 +100,18 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
                  shading = NoShading,
                  colormap = :thermal,
                  transparency = true,
-                 alpha = 0.9)
+                 alpha = 0.9,
+                 zlevel = 20_000)
 
-    # Coastlines not needed on 3D globe (Earth texture would be better, but keeping it simple)
-    coastlines_plot = nothing
+    # Add coastlines for 3D globe (black lines, will change with dark mode)
+    coastlines_plot_3d = lines!(ax, GeoMakie.coastlines(), color = :black)
 
-    # Add marker on map showing current location
+    # Add marker on map showing current location (at elevated z-level to be visible above data)
     scatter!(ax, lon_profile, lat_profile,
             color = (:red, 0.7),
             markersize = 30,
-            marker = :circle)
+            marker = :circle,
+            zlevel = 25_000)
 
     # Create colorbar label with variable name and units
     colorbar_label = Observable(string(
@@ -134,7 +148,7 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
         )
     end
 
-    return fig, ax, title, coastlines_plot, cbar
+    return fig, ax, title, coastlines_plot_3d, cbar
 end
 
 # Create vertical profile figure

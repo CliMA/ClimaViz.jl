@@ -71,6 +71,7 @@ mutable struct AppState
     speed_value_text::Observable
     dark_mode::Observable
     fig_bg_color::Observable
+    show_height::Observable
 
     # Axes and visual elements
     ax::Any
