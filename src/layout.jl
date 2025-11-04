@@ -76,9 +76,14 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
         fig_empty.scene.backgroundcolor[] = bg_rgba
     end
 
-    # Use observable to conditionally show profile figure (similar to 2D/3D map switching)
-    profile_fig_display = @lift($(show_height) ? fig_profile : fig_empty)
-    profile_card = Bonito.Card(profile_fig_display; shadow_size = "0")
+    # Keep both profile and empty figures in DOM, toggle visibility for consistency with map switching
+    profile_style = @lift($(show_height) ? Bonito.Styles("display" => "block") : Bonito.Styles("display" => "none"))
+    empty_style = @lift($(show_height) ? Bonito.Styles("display" => "none") : Bonito.Styles("display" => "block"))
+    
+    profile_div = Bonito.DOM.div(Bonito.Card(fig_profile; shadow_size = "0"); style = profile_style)
+    empty_div = Bonito.DOM.div(Bonito.Card(fig_empty; shadow_size = "0"); style = empty_style)
+    profile_card = Bonito.DOM.div(profile_div, empty_div)
+
 
     # Left sidebar with all controls stacked vertically
     left_sidebar = Bonito.Col(
