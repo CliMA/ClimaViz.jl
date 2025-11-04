@@ -155,7 +155,7 @@ function dashboard(path)
         fig_3d, ax_3d, title_3d, coastlines_plot_3d, cbar_3d = create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
 
         fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs =
-            create_profile_figure(var, heights, profile, profile_limits, current_height, profile_title, time_selected, :white)
+            create_profile_figure(var, heights, profile, profile_limits, current_height, profile_title, time_selected, :white, show_height)
 
         fig_timeseries, ax_timeseries, timeseries_ylabel, current_time_index, n_ticks, timeseries_lines =
             create_timeseries_figure(var, dates_array, timeseries, timeseries_title, time_selected, :white)
@@ -165,6 +165,7 @@ function dashboard(path)
             simdir, var, dates_array, heights, times,
             var_sliced, limits, title,
             lon_profile, lat_profile, profile, profile_limits, current_height, profile_title, profile_xlabel,
+            heights_obs,
             timeseries, timeseries_title, timeseries_ylabel, current_time_index,
             time_selected, height_selected, speed_selected,
             time_value_text, height_value_text, speed_value_text,
@@ -175,10 +176,6 @@ function dashboard(path)
             n_ticks,
             false  # updating flag
         )
-
-        # Store heights_obs in a way we can access it
-        # We'll add it as a field access pattern
-        state_with_heights_obs = (state = state, heights_obs = heights_obs)
 
         # Update main title using state
         if has_height(var[])
@@ -192,11 +189,11 @@ function dashboard(path)
             title_3d[] = t
         end
 
-        # Set up all event handlers - pass heights_obs to handlers that need it
+        # Set up all event handlers - they now access heights_obs and profile_combined from state
         setup_mouse_click_handler(fig, state)
-        setup_variable_handler(var_menu, reduction_menu, period_menu, height_slider, state, heights_obs)
-        setup_reduction_handler(reduction_menu, period_menu, state, heights_obs)
-        setup_period_handler(period_menu, reduction_menu, state, heights_obs)
+        setup_variable_handler(var_menu, reduction_menu, period_menu, height_slider, state)
+        setup_reduction_handler(reduction_menu, period_menu, state)
+        setup_period_handler(period_menu, reduction_menu, state)
         setup_time_handler(time_slider, state)
         setup_height_handler(height_slider, state)
         setup_speed_handler(speed_slider, state)

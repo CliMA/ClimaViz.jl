@@ -55,6 +55,7 @@ mutable struct AppState
     current_height::Observable
     profile_title::Observable
     profile_xlabel::Observable
+    heights_obs::Observable
 
     # Observables for timeseries
     timeseries::Observable
