@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Performance Improvements
+
+#### Fast 3D Globe Switching
+- Optimized 3D globe view switching to be nearly instantaneous
+- Both 2D and 3D figures now remain in DOM, toggling visibility via CSS
+- Eliminates WebGL context re-initialization when switching views
+- Previous implementation destroyed and recreated DOM elements, causing multi-second delays
+- Same optimization applied to profile figure switching for consistency
+
 ### New Features
 
 #### 3D Globe Visualization
