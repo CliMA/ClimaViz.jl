@@ -262,22 +262,9 @@ function update_for_new_variable(state::AppState, new_var, heights_new, heights_
         println("Profile limits: ", state.profile_limits[])
         println("Current height: ", state.current_height[])
 
-        # Show profile figure when variable has height
-        println("Setting profile visibility to TRUE")
-        state.profile_lines.visible = true
-        state.profile_hlines.visible = true
-
         # Force axis update
         autolimits!(state.ax_profile)
         xlims!(state.ax_profile, state.profile_limits[])
-
-        println("Profile lines visible after setting: ", state.profile_lines.visible[])
-        println("Profile hlines visible after setting: ", state.profile_hlines.visible[])
-    else
-        println("Setting profile visibility to FALSE")
-        # Hide profile figure when variable has no height
-        state.profile_lines.visible = false
-        state.profile_hlines.visible = false
     end
     state.timeseries[] = get_timeseries(state.var[], state.lon_profile[], state.lat_profile[]; height_selected = state.height_selected[])
     autolimits!(state.ax_timeseries)
@@ -478,19 +465,9 @@ function setup_dark_mode_handler(state::AppState, session)
         end
 
         # Update figure background colors directly (need RGBA type)
-        state.fig.scene.backgroundcolor[] = bg_rgba
+        # Note: Map figure (with 2D/3D) is handled in dashboard.jl
         state.fig_profile.scene.backgroundcolor[] = bg_rgba
         state.fig_timeseries.scene.backgroundcolor[] = bg_rgba
-
-        # Update main figure (map) - GeoAxis only supports title color
-        state.ax.titlecolor = text_color
-
-        # Update coastlines color
-        state.coastlines_plot.color = line_color
-
-        # Update colorbar text colors
-        state.colorbar.labelcolor = text_color
-        state.colorbar.ticklabelcolor = text_color
 
         # Update profile axis
         state.ax_profile.backgroundcolor = bg_color

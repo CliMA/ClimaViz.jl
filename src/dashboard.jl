@@ -148,14 +148,12 @@ function dashboard(path)
         profile_title = Observable(profile_title_string(var[], dates_array, time_selected[], lon_profile[], lat_profile[]))
         timeseries_title = Observable(timeseries_title_string(var[], heights, height_selected[], lon_profile[], lat_profile[]))
 
-        # Create figures (with white background initially)
-        fig, ax, title, coastlines_plot, cbar = create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
-        
-        # Create 3D globe figure
-        fig_3d, ax_3d, title_3d, coastlines_plot_3d, cbar_3d = create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
+        # Create combined figure with both 2D and 3D using Box visibility
+        fig_map, box_2d, box_3d, ax_2d, ax_3d, title, coastlines_2d, coastlines_3d, cbar =
+            create_combined_figure_with_boxes(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white, globe_3d)
 
-        fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs =
-            create_profile_figure(var, heights, profile, profile_limits, current_height, profile_title, time_selected, :white)
+        fig_profile, box_profile, box_empty_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs =
+            create_profile_figure(var, heights, profile, profile_limits, current_height, profile_title, time_selected, :white, show_height)
 
         fig_timeseries, ax_timeseries, timeseries_ylabel, current_time_index, n_ticks, timeseries_lines =
             create_timeseries_figure(var, dates_array, timeseries, timeseries_title, time_selected, :white)
@@ -170,8 +168,8 @@ function dashboard(path)
             time_value_text, height_value_text, speed_value_text,
             dark_mode, Observable(:white),  # fig_bg_color (not used anymore but kept for compatibility)
             show_height,
-            ax, ax_profile, ax_timeseries, profile_lines, profile_hlines, timeseries_lines, coastlines_plot, cbar,
-            fig, fig_profile, fig_timeseries,
+            ax_2d, ax_profile, ax_timeseries, profile_lines, profile_hlines, timeseries_lines, coastlines_2d, cbar,
+            fig_map, fig_profile, fig_timeseries,
             n_ticks,
             false  # updating flag
         )
@@ -187,13 +185,8 @@ function dashboard(path)
             update_title(state, time_selected[])
         end
 
-        # Synchronize 3D title with 2D title
-        on(title) do t
-            title_3d[] = t
-        end
-
         # Set up all event handlers - pass heights_obs to handlers that need it
-        setup_mouse_click_handler(fig, state)
+        setup_mouse_click_handler(fig_map, state)
         setup_variable_handler(var_menu, reduction_menu, period_menu, height_slider, state, heights_obs)
         setup_reduction_handler(reduction_menu, period_menu, state, heights_obs)
         setup_period_handler(period_menu, reduction_menu, state, heights_obs)
@@ -218,23 +211,25 @@ function dashboard(path)
             end
         end
 
-        # Also update 3D figure background when dark mode changes
+        # Also update map figure background when dark mode changes
         on(dark_mode) do is_dark
             bg_rgba = is_dark ? RGBf(0, 0, 0) : RGBf(1, 1, 1)
             text_color = is_dark ? :white : :black
             line_color = is_dark ? :white : :black
-            fig_3d.scene.backgroundcolor[] = bg_rgba
+            fig_map.scene.backgroundcolor[] = bg_rgba
+            ax_2d.titlecolor = text_color
             ax_3d.titlecolor = text_color
-            # Update 3D colorbar text colors
-            cbar_3d.labelcolor = text_color
-            cbar_3d.ticklabelcolor = text_color
-            # Update 3D coastlines color
-            coastlines_plot_3d.color = line_color
+            # Update colorbar text colors
+            cbar.labelcolor = text_color
+            cbar.ticklabelcolor = text_color
+            # Update coastlines colors
+            coastlines_2d.color = line_color
+            coastlines_3d.color = line_color
         end
 
         # Return layout
         return layout(var_menu, reduction_menu, period_menu, time_slider, height_slider, play_button, speed_slider,
-                     fig, fig_3d, fig_profile, fig_timeseries, show_height, profile_lines, profile_hlines,
+                     fig_map, fig_profile, fig_timeseries, show_height, profile_lines, profile_hlines,
                      time_value_label, height_value_label, speed_value_label, dark_mode_checkbox, globe_3d_checkbox, globe_3d, dark_mode)
     end
 

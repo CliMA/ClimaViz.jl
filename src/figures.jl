@@ -153,12 +153,16 @@ end
 
 # Create vertical profile figure
 function create_profile_figure(var, heights, profile, profile_limits, current_height,
-                               profile_title, time_selected, bg_color)
+                               profile_title, time_selected, bg_color, show_height)
     # 50% bigger: 400*1.5 = 600, 350*1.5 = 525
     fig_profile = Figure(size = (600, 525), backgroundcolor = bg_color, figure_padding = 0)
     profile_xlabel = Observable(string(ClimaAnalysis.short_name(var[]), " [", ClimaAnalysis.units(var[]), "]"))
 
-    ax_profile = Axis(fig_profile[1, 1],
+    # Create Box for profile content (when variable has height)
+    box_profile = Box(fig_profile[1, 1], tellwidth=true, tellheight=true)
+    box_profile.visible = show_height[]
+
+    ax_profile = Axis(box_profile[1, 1],
                      xlabel = profile_xlabel, ylabel = "Height [m]",
                      title = profile_title,
                      xlabelsize = 20, ylabelsize = 20,
@@ -172,12 +176,21 @@ function create_profile_figure(var, heights, profile, profile_limits, current_he
     heights_obs = Observable(length(heights) > 0 ? heights : [0.0])
 
     # Create profile plot elements with observable heights
-    profile_lines = lines!(ax_profile, profile, heights_obs, color = :black, linewidth = 3, visible = has_height(var[]))
+    profile_lines = lines!(ax_profile, profile, heights_obs, color = :black, linewidth = 3)
     xlims!(ax_profile, profile_limits[])
-    profile_hlines = hlines!(ax_profile, current_height, color = :grey, linestyle = :dash, linewidth = 2, visible = has_height(var[]))
+    profile_hlines = hlines!(ax_profile, current_height, color = :grey, linestyle = :dash, linewidth = 2)
 
-    fig_profile
-    return fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs
+    # Create Box for empty content (when variable has no height)
+    box_empty = Box(fig_profile[1, 1], tellwidth=true, tellheight=true)
+    box_empty.visible = !show_height[]
+
+    # Toggle box visibility based on show_height observable
+    on(show_height) do has_h
+        box_profile.visible = has_h
+        box_empty.visible = !has_h
+    end
+
+    return fig_profile, box_profile, box_empty, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs
 end
 
 # Create time series figure
