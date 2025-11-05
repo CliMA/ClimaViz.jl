@@ -21,6 +21,9 @@ function setup_mouse_click_handler(fig, state::AppState)
             # Update profile if variable has height
             if has_height(state.var[])
                 state.profile[] = get_profile(state.var[], state.lon_profile[], state.lat_profile[], state.time_selected[])
+                # Force both observables to notify even if values haven't changed
+                notify(state.profile)
+                notify(state.heights_obs)
                 # Calculate limits across ALL times at this location
                 state.profile_limits[] = get_profile_limits_all_times(state.var[], state.lon_profile[], state.lat_profile[])
                 xlims!(state.ax_profile, state.profile_limits[])
@@ -47,7 +50,7 @@ function setup_mouse_click_handler(fig, state::AppState)
 end
 
 # Handle variable menu selection
-function setup_variable_handler(var_menu, reduction_menu, period_menu, height_slider, state::AppState, heights_obs)
+function setup_variable_handler(var_menu, reduction_menu, period_menu, height_slider, state::AppState)
     on(var_menu.value) do v
         # Set flag to prevent other handlers from firing
         state.updating = true
@@ -105,7 +108,7 @@ function setup_variable_handler(var_menu, reduction_menu, period_menu, height_sl
             height_slider.index[] = new_height_idx
 
             # Update all variable state
-            update_for_new_variable(state, new_var, heights_new, heights_obs)
+            update_for_new_variable(state, new_var, heights_new)
 
             println("After update - Profile lines visible: ", state.profile_lines.visible[])
             println("After update - Profile hlines visible: ", state.profile_hlines.visible[])
@@ -118,7 +121,7 @@ function setup_variable_handler(var_menu, reduction_menu, period_menu, height_sl
 end
 
 # Handle reduction menu selection
-function setup_reduction_handler(reduction_menu, period_menu, state::AppState, heights_obs)
+function setup_reduction_handler(reduction_menu, period_menu, state::AppState)
     on(reduction_menu.value) do reduction
         # Skip if we're in the middle of updating
         if state.updating
@@ -151,7 +154,7 @@ function setup_reduction_handler(reduction_menu, period_menu, state::AppState, h
             heights_new = has_height(new_var) ? new_var.dims[get_height_dim_name(new_var)] : Float64[]
 
             # Update everything (reuse the same logic from variable handler)
-            update_for_new_variable(state, new_var, heights_new, heights_obs)
+            update_for_new_variable(state, new_var, heights_new)
         finally
             state.updating = false
         end
@@ -159,7 +162,7 @@ function setup_reduction_handler(reduction_menu, period_menu, state::AppState, h
 end
 
 # Handle period menu selection
-function setup_period_handler(period_menu, reduction_menu, state::AppState, heights_obs)
+function setup_period_handler(period_menu, reduction_menu, state::AppState)
     on(period_menu.value) do period
         # Skip if we're in the middle of updating
         if state.updating
@@ -180,7 +183,7 @@ function setup_period_handler(period_menu, reduction_menu, state::AppState, heig
             heights_new = has_height(new_var) ? new_var.dims[get_height_dim_name(new_var)] : Float64[]
 
             # Update everything
-            update_for_new_variable(state, new_var, heights_new, heights_obs)
+            update_for_new_variable(state, new_var, heights_new)
         finally
             state.updating = false
         end
@@ -188,7 +191,7 @@ function setup_period_handler(period_menu, reduction_menu, state::AppState, heig
 end
 
 # Helper function to update all state when variable changes
-function update_for_new_variable(state::AppState, new_var, heights_new, heights_obs)
+function update_for_new_variable(state::AppState, new_var, heights_new)
     println("\n--- UPDATE FOR NEW VARIABLE ---")
     println("Has height: ", has_height(new_var))
     println("Heights new: ", heights_new)
@@ -196,8 +199,9 @@ function update_for_new_variable(state::AppState, new_var, heights_new, heights_
     # Update the variable in state
     state.var[] = new_var
 
-    # Update show_height based on new variable
-    state.show_height[] = has_height(new_var)
+    # DON'T update show_height yet - wait until all data is ready
+    # to avoid @lift picking up stale data
+    needs_height_update = has_height(new_var)
 
     # Update heights for new variable
     empty!(state.heights)
@@ -205,11 +209,12 @@ function update_for_new_variable(state::AppState, new_var, heights_new, heights_
 
     # CRITICAL: Update the heights observable so the plot updates
     if length(heights_new) > 0
-        heights_obs[] = collect(heights_new)
-        println("Updated heights_obs to: ", heights_obs[])
+        state.heights_obs[] = collect(heights_new)
+        println("Updated heights_obs to: ", state.heights_obs[])
+        println("Heights_obs length: ", length(state.heights_obs[]))
     else
-        heights_obs[] = [0.0]
-        println("Updated heights_obs to dummy: ", heights_obs[])
+        state.heights_obs[] = [0.0]
+        println("Updated heights_obs to dummy: ", state.heights_obs[])
     end
 
     println("State heights after update: ", state.heights)
@@ -241,7 +246,11 @@ function update_for_new_variable(state::AppState, new_var, heights_new, heights_
 
     # Update titles
     state.timeseries_title[] = timeseries_title_string(state.var[], state.heights, state.height_selected[], state.lon_profile[], state.lat_profile[])
-    state.profile_title[] = profile_title_string(state.var[], state.dates_array, state.time_selected[], state.lon_profile[], state.lat_profile[])
+
+    new_title = profile_title_string(state.var[], state.dates_array, state.time_selected[], state.lon_profile[], state.lat_profile[])
+    println("SETTING profile_title to: ", new_title)
+    state.profile_title[] = new_title
+    println("AFTER SETTING, profile_title is: ", state.profile_title[])
 
     # Update height value label
     if has_height(state.var[])
@@ -253,34 +262,37 @@ function update_for_new_variable(state::AppState, new_var, heights_new, heights_
     # Update profile and timeseries
     if has_height(state.var[])
         state.profile[] = get_profile(state.var[], state.lon_profile[], state.lat_profile[], state.time_selected[])
+
+        # Force both observables to notify to ensure plot updates
+        # This is critical when heights are identical but profile data changed
+        notify(state.profile)
+        notify(state.heights_obs)
+        println("Notified profile and heights_obs")
+
         # Calculate limits across ALL times at this location for stable visualization
         state.profile_limits[] = get_profile_limits_all_times(state.var[], state.lon_profile[], state.lat_profile[])
-        xlims!(state.ax_profile, state.profile_limits[])
         state.current_height[] = state.heights[state.height_selected[]]
 
         println("Profile data: ", state.profile[])
+        println("Profile data length: ", length(state.profile[]))
         println("Profile limits: ", state.profile_limits[])
         println("Current height: ", state.current_height[])
+        println("Profile title will be: ", profile_title_string(state.var[], state.dates_array, state.time_selected[], state.lon_profile[], state.lat_profile[]))
 
-        # Show profile figure when variable has height
-        println("Setting profile visibility to TRUE")
-        state.profile_lines.visible = true
-        state.profile_hlines.visible = true
-
-        # Force axis update
-        autolimits!(state.ax_profile)
+        # Explicitly set axis limits (don't use autolimits as it might use stale data)
         xlims!(state.ax_profile, state.profile_limits[])
+        ylims!(state.ax_profile, minimum(state.heights), maximum(state.heights))
 
-        println("Profile lines visible after setting: ", state.profile_lines.visible[])
-        println("Profile hlines visible after setting: ", state.profile_hlines.visible[])
-    else
-        println("Setting profile visibility to FALSE")
-        # Hide profile figure when variable has no height
-        state.profile_lines.visible = false
-        state.profile_hlines.visible = false
+        println("Profile visibility now controlled by show_height observable")
+        println("Y-limits set to: ", (minimum(state.heights), maximum(state.heights)))
     end
     state.timeseries[] = get_timeseries(state.var[], state.lon_profile[], state.lat_profile[]; height_selected = state.height_selected[])
     autolimits!(state.ax_timeseries)
+
+    # Update show_height LAST after all data is ready
+    # This ensures when @lift switches figures, everything is already updated
+    println("Updating show_height to: ", needs_height_update)
+    state.show_height[] = needs_height_update
 
     println("-------------------------------\n")
 end
@@ -309,6 +321,9 @@ function setup_time_handler(time_slider, state::AppState)
         if has_height(state.var[])
             # Update profile data but NOT the limits (limits stay fixed for animation)
             state.profile[] = get_profile(state.var[], state.lon_profile[], state.lat_profile[], t)
+            # Force notify to ensure update
+            notify(state.profile)
+            notify(state.heights_obs)
         end
     end
 end
@@ -366,6 +381,9 @@ function setup_play_handler(play_button, time_slider, state::AppState)
             if has_height(state.var[])
                 # Update profile data but NOT the limits (limits stay fixed for animation)
                 state.profile[] = get_profile(state.var[], state.lon_profile[], state.lat_profile[], t)
+                # Force notify to ensure update
+                notify(state.profile)
+                notify(state.heights_obs)
             end
 
             # Update time slider value to move the vertical line
@@ -502,6 +520,9 @@ function setup_dark_mode_handler(state::AppState, session)
 
         # Update profile lines color
         state.profile_lines.color = line_color
+
+        # Update profile box color (white in light mode, black in dark mode)
+        state.profile_box.color = bg_color
 
         # Update timeseries axis
         state.ax_timeseries.backgroundcolor = bg_color

@@ -55,6 +55,7 @@ mutable struct AppState
     current_height::Observable
     profile_title::Observable
     profile_xlabel::Observable
+    heights_obs::Observable
 
     # Observables for timeseries
     timeseries::Observable
@@ -82,6 +83,7 @@ mutable struct AppState
     timeseries_lines::Any
     coastlines_plot::Any
     colorbar::Any
+    profile_box::Any
 
     # Figures for background color updates
     fig::Any
