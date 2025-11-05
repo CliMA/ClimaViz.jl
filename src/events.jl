@@ -521,6 +521,9 @@ function setup_dark_mode_handler(state::AppState, session)
         # Update profile lines color
         state.profile_lines.color = line_color
 
+        # Update profile box color (white in light mode, black in dark mode)
+        state.profile_box.color = bg_color
+
         # Update timeseries axis
         state.ax_timeseries.backgroundcolor = bg_color
         state.ax_timeseries.titlecolor = text_color

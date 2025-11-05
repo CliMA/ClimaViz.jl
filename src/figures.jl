@@ -172,12 +172,23 @@ function create_profile_figure(var, heights, profile, profile_limits, current_he
     heights_obs = Observable(length(heights) > 0 ? heights : [0.0])
 
     # Create profile plot elements with separate x,y observables - simple and direct
-    profile_lines = lines!(ax_profile, profile, heights_obs, color = :black, linewidth = 3, visible = show_height)
+    # No longer need to control visibility of lines - the Box will cover them
+    profile_lines = lines!(ax_profile, profile, heights_obs, color = :black, linewidth = 3)
     xlims!(ax_profile, profile_limits[])
-    profile_hlines = hlines!(ax_profile, current_height, color = :grey, linestyle = :dash, linewidth = 2, visible = show_height)
+    profile_hlines = hlines!(ax_profile, current_height, color = :grey, linestyle = :dash, linewidth = 2)
+
+    # Create a Box that covers the figure when there's no height dimension
+    # The box is white in normal mode, black in dark mode
+    # It's visible when show_height is false (i.e., when there's no height dimension)
+    profile_box = Box(fig_profile[1, 1],
+                      color = bg_color,
+                      strokevisible = false,
+                      visible = !show_height[],
+                      tellwidth = false,
+                      tellheight = false)
 
     fig_profile
-    return fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs
+    return fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs, profile_box
 end
 
 # Create time series figure

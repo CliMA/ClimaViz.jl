@@ -67,28 +67,9 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
     # Timeseries card
     timeseries_card = Bonito.Card(fig_timeseries; shadow_size = "0")
 
-    # Create an empty figure for when there's no height dimension
-    fig_empty = Figure(size = (600, 525), backgroundcolor = :white, figure_padding = 0)
-
-    # Update empty figure background when dark mode changes
-    on(dark_mode) do is_dark
-        bg_rgba = is_dark ? RGBf(0, 0, 0) : RGBf(1, 1, 1)
-        fig_empty.scene.backgroundcolor[] = bg_rgba
-    end
-
-    # Keep both profile and empty figures in DOM, toggle visibility for consistency with map switching
-    # Use Observable with on() callback instead of @lift to avoid synchronous update issues
-    profile_style = Observable(show_height[] ? Bonito.Styles("display" => "block") : Bonito.Styles("display" => "none"))
-    empty_style = Observable(show_height[] ? Bonito.Styles("display" => "none") : Bonito.Styles("display" => "block"))
-    
-    on(show_height) do is_shown
-        profile_style[] = is_shown ? Bonito.Styles("display" => "block") : Bonito.Styles("display" => "none")
-        empty_style[] = is_shown ? Bonito.Styles("display" => "none") : Bonito.Styles("display" => "block")
-    end
-    
-    profile_div = Bonito.DOM.div(Bonito.Card(fig_profile; shadow_size = "0"); style = profile_style)
-    empty_div = Bonito.DOM.div(Bonito.Card(fig_empty; shadow_size = "0"); style = empty_style)
-    profile_card = Bonito.DOM.div(profile_div, empty_div)
+    # Profile card - now always shows the profile figure
+    # When there's no height dimension, the Makie.Box inside covers it
+    profile_card = Bonito.Card(fig_profile; shadow_size = "0")
 
 
     # Left sidebar with all controls stacked vertically
