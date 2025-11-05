@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.1 - 2025-11-05
+
 ### Performance Improvements
 
 #### Fast 3D Globe Switching
