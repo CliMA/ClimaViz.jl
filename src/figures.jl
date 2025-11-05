@@ -3,11 +3,11 @@ export create_main_figure, create_main_figure_3d, create_profile_figure, create_
 # Create main map figure with surface plot
 function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, bg_color)
     # Large figure that fills screen naturally (minimal CSS scaling)
-    fig = Figure(size = (3200, 1800), backgroundcolor = bg_color, figure_padding = 0)
+    fig = Figure(size = (2150, 1200), backgroundcolor = bg_color, figure_padding = 0)
     title = Observable("title")
 
     # Equirectangular projection
-    ax = GeoAxis(fig[1, 1], title = title, titlesize = 24.0f0, dest = "+proj=eqc")
+    ax = GeoAxis(fig[1, 1], title = title, titlesize = 16.0f0, dest = "+proj=eqc")
 
     # Hide axis decorations for cleaner look
     hidedecorations!(ax)
@@ -30,7 +30,7 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
     # Add marker on map showing current location
     scatter!(ax, lon_profile, lat_profile,
             color = (:red, 0.7),
-            markersize = 30,
+            markersize = 20,
             marker = :circle)
 
     # Create colorbar label with variable name and units
@@ -48,10 +48,10 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
              vertical = false,
              colorrange = limits,
              width = Relative(0.25),
-             height = 20,
-             ticklabelsize = 24.0,
+             height = 13,
+             ticklabelsize = 16.0,
              label = colorbar_label,
-             labelsize = 28.0,
+             labelsize = 19.0,
              halign = :right,
              valign = :bottom,
              tellheight = false,
@@ -74,11 +74,11 @@ end
 # Create main 3D globe figure
 function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, bg_color)
     # Large figure that fills screen naturally
-    fig = Figure(size = (3200, 1800), backgroundcolor = bg_color, figure_padding = 0)
+    fig = Figure(size = (2150, 1200), backgroundcolor = bg_color, figure_padding = 0)
     title = Observable("title")
 
     # Use GlobeAxis for 3D globe with title
-    ax = GeoMakie.GlobeAxis(fig[1, 1]; show_axis = false, title = title, titlesize = 24.0f0, titlevisible = true)
+    ax = GeoMakie.GlobeAxis(fig[1, 1]; show_axis = false, title = title, titlesize = 16.0f0, titlevisible = true)
 
     # Load Earth image for background
     earth_img = FileIO.load(download("https://upload.wikimedia.org/wikipedia/commons/5/56/Blue_Marble_Next_Generation_%2B_topography_%2B_bathymetry.jpg"))
@@ -109,7 +109,7 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
     # Add marker on map showing current location (at elevated z-level to be visible above data)
     scatter!(ax, lon_profile, lat_profile,
             color = (:red, 0.7),
-            markersize = 30,
+            markersize = 20,
             marker = :circle,
             zlevel = 25_000)
 
@@ -128,10 +128,10 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
              vertical = false,
              colorrange = limits,
              width = Relative(0.25),
-             height = 20,
-             ticklabelsize = 24.0,
+             height = 13,
+             ticklabelsize = 16.0,
              label = colorbar_label,
-             labelsize = 28.0,
+             labelsize = 19.0,
              halign = :right,
              valign = :bottom,
              tellheight = false,
@@ -154,16 +154,16 @@ end
 # Create vertical profile figure
 function create_profile_figure(var, heights, profile, profile_limits, current_height,
                                profile_title, time_selected, bg_color, show_height)
-    # 50% bigger: 400*1.5 = 600, 350*1.5 = 525
-    fig_profile = Figure(size = (600, 525), backgroundcolor = bg_color, figure_padding = 0)
+    # Scaled to 67% for better fit at 100% zoom
+    fig_profile = Figure(size = (400, 350), backgroundcolor = bg_color, figure_padding = 0)
     profile_xlabel = Observable(string(ClimaAnalysis.short_name(var[]), " [", ClimaAnalysis.units(var[]), "]"))
 
     ax_profile = Axis(fig_profile[1, 1],
                      xlabel = profile_xlabel, ylabel = "Height [m]",
                      title = profile_title,
-                     xlabelsize = 20, ylabelsize = 20,
-                     xticklabelsize = 18, yticklabelsize = 18,
-                     titlesize = 24)
+                     xlabelsize = 13, ylabelsize = 13,
+                     xticklabelsize = 12, yticklabelsize = 12,
+                     titlesize = 16)
 
     # Deactivate zoom via scroll
     deactivate_interaction!(ax_profile, :scrollzoom)
@@ -193,16 +193,16 @@ end
 
 # Create time series figure
 function create_timeseries_figure(var, dates_array, timeseries, timeseries_title, time_selected, bg_color)
-    # 50% bigger: 400*1.5 = 600, 350*1.5 = 525
-    fig_timeseries = Figure(size = (600, 525), backgroundcolor = bg_color, figure_padding = 0)
+    # Scaled to 67% for better fit at 100% zoom
+    fig_timeseries = Figure(size = (400, 350), backgroundcolor = bg_color, figure_padding = 0)
     timeseries_ylabel = Observable(string(ClimaAnalysis.short_name(var[]), " [", ClimaAnalysis.units(var[]), "]"))
 
     ax_timeseries = Axis(fig_timeseries[1, 1],
                         xlabel = "", ylabel = timeseries_ylabel,
                         title = timeseries_title,
-                        xlabelsize = 20, ylabelsize = 20,
-                        xticklabelsize = 18, yticklabelsize = 18,
-                        titlesize = 24,
+                        xlabelsize = 13, ylabelsize = 13,
+                        xticklabelsize = 12, yticklabelsize = 12,
+                        titlesize = 16,
                         xticklabelrotation = π/4)
 
     # Deactivate zoom via scroll

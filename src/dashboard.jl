@@ -52,8 +52,30 @@ function dashboard(path)
         simdir = ClimaAnalysis.SimDir(path)
         vars = collect(keys(simdir.vars))
 
+        # Create dark mode checkbox first so we can use it for styling
+        checkbox_style = Bonito.Styles(
+            "width" => "18px",
+            "height" => "18px",
+            "cursor" => "pointer",
+            "accent-color" => "#2196F3",
+            "margin" => "0",
+            "transform" => "scale(1.1)"
+        )
+        dark_mode_checkbox = Bonito.Checkbox(false; style = checkbox_style)
+        dark_mode = dark_mode_checkbox.value
+
         # Create UI controls
-        var_menu_style = Bonito.Styles("font-size" => "4em", "font-weight" => "bold")
+        var_menu_style = map(dark_mode) do is_dark
+            Bonito.Styles(
+                "font-size" => "0.85rem",
+                "font-weight" => "bold",
+                "padding" => "6px 10px",
+                "border-radius" => "4px",
+                "cursor" => "pointer",
+                "min-width" => "180px",
+                "color" => "black"
+            )
+        end
         var_menu = Bonito.ChoicesBox(vars; style = var_menu_style)
         var_menu.value[] = first(vars)
         var_selected = var_menu.value
@@ -63,14 +85,22 @@ function dashboard(path)
         available_reductions = collect(keys(simdir.vars[initial_var_name]))
         initial_reduction = first(available_reductions)
 
-        reduction_menu = Bonito.Dropdown(available_reductions)
+        dropdown_style = Bonito.Styles(
+            "font-size" => "0.85rem",
+            "padding" => "6px 10px",
+            "border-radius" => "4px",
+            "cursor" => "pointer",
+            "min-width" => "180px"
+        )
+
+        reduction_menu = Bonito.Dropdown(available_reductions; style = dropdown_style)
         reduction_menu.value[] = initial_reduction
         reduction_selected = reduction_menu.value
 
         available_periods = collect(keys(simdir.vars[initial_var_name][initial_reduction]))
         initial_period = first(available_periods)
 
-        period_menu = Bonito.Dropdown(available_periods)
+        period_menu = Bonito.Dropdown(available_periods; style = dropdown_style)
         period_menu.value[] = initial_period
         period_selected = period_menu.value
 
@@ -98,21 +128,28 @@ function dashboard(path)
         speed_slider.value[] = 0.1
         speed_selected = speed_slider.value
 
-        play_button = Bonito.Button("Play")
+        # Create button with improved styling
+        button_style = Bonito.Styles(
+            "padding" => "6px 14px",
+            "font-size" => "0.9rem",
+            "font-weight" => "bold",
+            "border-radius" => "4px",
+            "border" => "2px solid #888888",
+            "background-color" => "#888888",
+            "color" => "white",
+            "cursor" => "pointer"
+        )
+        play_button = Bonito.Button("Play"; style = button_style)
 
-        # Create dark mode checkbox
-        dark_mode_checkbox = Bonito.Checkbox(false)
-        dark_mode = dark_mode_checkbox.value
-
-        # Create 3D globe checkbox
-        globe_3d_checkbox = Bonito.Checkbox(false)
+        # Create 3D globe checkbox with improved styling
+        globe_3d_checkbox = Bonito.Checkbox(false; style = checkbox_style)
         globe_3d = globe_3d_checkbox.value
 
         # Create observable for showing height dimension
         show_height = Observable(has_height(var[]))
 
         # Create value labels
-        value_style = Bonito.Styles("font-size" => "1.5rem")
+        value_style = Bonito.Styles("font-size" => "0.9rem")
         time_value_text = Observable(Dates.format(dates_array[time_selected[]], "u yyyy"))
         time_value_label = Bonito.DOM.h1(time_value_text; style = value_style)
 

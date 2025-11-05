@@ -3,8 +3,20 @@ export layout
 function layout(var_menu, reduction_menu, period_menu, time_slider, height_slider, play_button, speed_slider,
                 fig, fig_3d, fig_profile, fig_timeseries, show_height, profile_lines, profile_hlines,
                 time_value_label, height_value_label, speed_value_label, dark_mode_checkbox, globe_3d_checkbox, globe_3d, dark_mode)
-    label_style = Bonito.Styles("font-size" => "1.2rem")
-    header_style = Bonito.Styles("font-size" => "2rem", "text-align" => "center")
+    label_style = Bonito.Styles(
+        "font-size" => "0.9rem",
+        "font-weight" => "600",
+        "margin" => "0",
+        "display" => "flex",
+        "align-items" => "center",
+        "gap" => "6px"
+    )
+    header_style = Bonito.Styles(
+        "font-size" => "1.3rem",
+        "text-align" => "center",
+        "font-weight" => "bold",
+        "margin-bottom" => "0.5rem"
+    )
 
     # Create height row with value display
     height_label = Bonito.DOM.h1("Height: "; style = label_style)
@@ -22,19 +34,33 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
         speed_value_label;
     )
 
-    # Dark mode row
-    dark_mode_row = Bonito.Row(
-        Bonito.DOM.h1("Dark Mode: "; style = label_style),
+    # Dark mode row with improved layout
+    checkbox_row_style = Bonito.Styles(
+        "display" => "flex",
+        "align-items" => "center",
+        "gap" => "8px",
+        "padding" => "4px 0"
+    )
+    dark_mode_label = Bonito.DOM.span("Dark Mode: "; style = label_style)
+    dark_mode_row = Bonito.DOM.div(
+        dark_mode_label,
         dark_mode_checkbox;
+        style = checkbox_row_style
     )
 
-    # 3D globe row
-    globe_3d_row = Bonito.Row(
-        Bonito.DOM.h1("3D Globe: "; style = label_style),
+    # 3D globe row with improved layout
+    globe_3d_label = Bonito.DOM.span("3D Globe: "; style = label_style)
+    globe_3d_row = Bonito.DOM.div(
+        globe_3d_label,
         globe_3d_checkbox;
+        style = checkbox_row_style
     )
 
-    # Menu card (no overlay, in sidebar)
+    # Menu card with improved styling
+    menu_card_style = Bonito.Styles(
+        "padding" => "12px",
+        "border-radius" => "8px"
+    )
     menu_card = Bonito.Card(
         Bonito.Col(
             Bonito.DOM.h1("Menu"; style = header_style),
@@ -61,7 +87,8 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
             animation_row;
             height = "auto"
         );
-        shadow_size = "0"
+        shadow_size = "0",
+        style = menu_card_style
     )
 
     # Timeseries card
