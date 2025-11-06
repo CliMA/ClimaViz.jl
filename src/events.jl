@@ -419,10 +419,11 @@ function setup_transparency_gradient_handler(state::AppState)
             # Handle NaN values - set them to 0 alpha (fully transparent)
             alpha_values = replace(alpha_values, NaN => 0.0)
 
-            # Apply quantile-based transformation like in the cloud examples
+            # Apply quantile-based transformation with softer/wider range
+            # Using wider quantiles (0.05, 0.95) for gentler transition
             valid_alphas = filter(!isnan, vec(alpha_values))
-            low_val = Statistics.quantile(valid_alphas, 0.2)
-            high_val = Statistics.quantile(valid_alphas, 0.85)
+            low_val = Statistics.quantile(valid_alphas, 0.05)
+            high_val = Statistics.quantile(valid_alphas, 0.95)
             transform(x) = clamp((x - low_val) / (high_val - low_val), 0, 1)
             alpha_values = transform.(alpha_values)
         end
@@ -607,9 +608,9 @@ function setup_dark_mode_handler(state::AppState, session)
             document.body.style.color = 'black';
             // Update menu card specifically (grey background)
             document.querySelectorAll('.menu-card').forEach(card => {
-                card.style.backgroundColor = '#f5f5f5';
+                card.style.backgroundColor = '#e0e0e0';
                 card.style.color = 'black';
-                card.style.borderColor = '#e0e0e0';
+                card.style.borderColor = '#d0d0d0';
             });
             // Update other cards (white background)
             document.querySelectorAll('.card:not(.menu-card)').forEach(card => {

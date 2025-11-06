@@ -205,7 +205,7 @@ function dashboard(path)
         fig, ax, title, coastlines_plot, cbar, surface_plot_colormap, surface_plot_rgba, rgba_colors, earth_surface, colorbar_label = create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
 
         # Create 3D globe figure
-        fig_3d, ax_3d, title_3d, coastlines_plot_3d, cbar_3d, surface_plot_3d_colormap, surface_plot_3d_rgba, rgba_colors_3d, earth_surface_3d, earth_img, colorbar_label_3d = create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
+        fig_3d, ax_3d, title_3d, coastlines_plot_3d, cbar_3d, surface_plot_3d_colormap, surface_plot_3d_rgba, rgba_colors_3d, earth_surface_3d, earth_img, colorbar_label_3d, stars = create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
 
         fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs, profile_box =
             create_profile_figure(var, heights, profile, profile_limits, current_height, profile_title, time_selected, :white, show_height)
@@ -319,6 +319,10 @@ function dashboard(path)
             cbar_3d.ticklabelcolor = text_color
             # Update 3D coastlines color
             coastlines_plot_3d.color = line_color
+            # Toggle stars visibility - show in dark mode only
+            # stars is a tuple of (main_stars, halo_stars)
+            stars[1].visible = is_dark
+            stars[2].visible = is_dark
         end
 
         # Return layout

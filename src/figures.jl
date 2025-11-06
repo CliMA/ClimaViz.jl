@@ -182,7 +182,78 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
         )
     end
 
-    return fig, ax, title, coastlines_plot_3d, cbar, p_colormap, p_rgba, rgba_colors_3d, earth_surface, earth_img, colorbar_label
+    # Create starfield for space background (visible only in dark mode)
+    # Generate random star positions in 3D space around the globe
+    n_stars_background = 15000  # Base stars
+    n_stars_milkyway = 25000    # Extra stars for Milky Way band
+    Random.seed!(42)  # For reproducibility
+
+    # Background stars - uniformly distributed
+    star_radius = 1e8  # Far from Earth
+    star_theta_bg = 2π .* rand(n_stars_background)
+    star_phi_bg = acos.(2 .* rand(n_stars_background) .- 1)
+
+    # Convert to Cartesian coordinates
+    star_x_bg = star_radius .* sin.(star_phi_bg) .* cos.(star_theta_bg)
+    star_y_bg = star_radius .* sin.(star_phi_bg) .* sin.(star_theta_bg)
+    star_z_bg = star_radius .* cos.(star_phi_bg)
+
+    # Milky Way band - concentrated along a great circle
+    # Create a tilted band (like viewing the Milky Way from Earth)
+    star_theta_mw = 2π .* rand(n_stars_milkyway)
+    # Concentrate stars near the equatorial plane (narrow gaussian distribution)
+    star_phi_deviation = 0.15 .* randn(n_stars_milkyway)  # Gaussian around 0
+    star_phi_mw = π/2 .+ star_phi_deviation  # Concentrated near equator with tilt
+
+    # Convert Milky Way stars to Cartesian
+    star_x_mw = star_radius .* sin.(star_phi_mw) .* cos.(star_theta_mw)
+    star_y_mw = star_radius .* sin.(star_phi_mw) .* sin.(star_theta_mw)
+    star_z_mw = star_radius .* cos.(star_phi_mw)
+
+    # Apply rotation to tilt the Milky Way band (30 degrees)
+    tilt_angle = π/6  # 30 degrees
+    star_x_mw_rotated = star_x_mw .* cos(tilt_angle) .- star_z_mw .* sin(tilt_angle)
+    star_z_mw_rotated = star_x_mw .* sin(tilt_angle) .+ star_z_mw .* cos(tilt_angle)
+
+    # Combine all stars
+    star_x = vcat(star_x_bg, star_x_mw_rotated)
+    star_y = vcat(star_y_bg, star_y_mw)
+    star_z = vcat(star_z_bg, star_z_mw_rotated)
+    n_stars = n_stars_background + n_stars_milkyway
+
+    # Create different star types for variety
+    # Some very bright (pure white), some dimmer
+    # Milky Way stars are slightly dimmer on average
+    star_brightness = vcat(rand(n_stars_background), 0.7 .* rand(n_stars_milkyway))
+    star_colors = [RGBAf(1, 1, 1, b > 0.85 ? 1.0 : 0.3 + 0.5*b) for b in star_brightness]
+
+    # Slightly bigger stars
+    star_sizes = 1.0 .+ 2.0 .* rand(n_stars)
+
+    # Add main stars (small, no borders)
+    stars_main = scatter!(ax.scene, star_x, star_y, star_z,
+                    color = star_colors,
+                    markersize = star_sizes,
+                    strokewidth = 0,  # No borders
+                    space = :data,
+                    visible = false)
+
+    # Add halo effect for bright stars only
+    bright_indices = findall(b -> b > 0.85, star_brightness)
+    halo_colors = [RGBAf(1, 1, 1, 0.15) for _ in bright_indices]
+    halo_sizes = star_sizes[bright_indices] .* 3  # 3x larger for halo
+
+    stars_halo = scatter!(ax.scene, star_x[bright_indices], star_y[bright_indices], star_z[bright_indices],
+                    color = halo_colors,
+                    markersize = halo_sizes,
+                    strokewidth = 0,
+                    space = :data,
+                    visible = false)
+
+    # Return both star layers as a tuple
+    stars = (stars_main, stars_halo)
+
+    return fig, ax, title, coastlines_plot_3d, cbar, p_colormap, p_rgba, rgba_colors_3d, earth_surface, earth_img, colorbar_label, stars
 end
 
 # Create vertical profile figure

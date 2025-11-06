@@ -70,7 +70,7 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
     menu_card_style = Bonito.Styles(
         "padding" => "12px",
         "border-radius" => "8px",
-        "background-color" => "#f5f5f5"  # Light grey in white mode
+        "background-color" => "#e0e0e0"  # Medium grey in white mode
     )
 
     # Left column: dark mode, 3D globe, variable, reduction, period
