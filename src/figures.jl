@@ -73,20 +73,29 @@ end
 
 # Generate random star positions for the 3D space background
 function generate_stars(n_stars = 500)
+    # Constants for star appearance
+    STAR_DISTANCE_MIN = 1.8  # Minimum distance from origin (Earth radius = 1.0)
+    STAR_DISTANCE_RANGE = 0.3  # Range of distances for depth variation
+    STAR_SIZE_MIN = 2.0  # Minimum star size
+    STAR_SIZE_RANGE = 8.0  # Range of star sizes
+    STAR_ALPHA_MIN = 0.3  # Minimum transparency (30%)
+    STAR_ALPHA_RANGE = 0.7  # Range of transparency values
+    
     # Generate random points distributed in a sphere around Earth
-    # Using spherical coordinates for better distribution
-    θ = 2π .* rand(n_stars)  # azimuthal angle
-    φ = acos.(2 .* rand(n_stars) .- 1)  # polar angle (uniform on sphere)
-    r = 1.8 .+ 0.3 .* rand(n_stars)  # radius (stars at varying distances, beyond Earth)
+    # Using spherical coordinates for uniform distribution
+    θ = 2π .* rand(n_stars)  # Azimuthal angle (longitude)
+    φ = acos.(2 .* rand(n_stars) .- 1)  # Polar angle from +z axis (inverse CDF for uniform distribution)
+    r = STAR_DISTANCE_MIN .+ STAR_DISTANCE_RANGE .* rand(n_stars)  # Radial distance from origin
     
     # Convert to Cartesian coordinates
     x = r .* sin.(φ) .* cos.(θ)
     y = r .* sin.(φ) .* sin.(θ)
     z = r .* cos.(φ)
     
-    # Vary star brightness/size
-    sizes = 2.0 .+ 8.0 .* rand(n_stars).^3  # Most stars small, some larger
-    alphas = 0.3 .+ 0.7 .* rand(n_stars)  # Varying transparency
+    # Vary star brightness/size with power law distribution (most stars small, some larger)
+    sizes = STAR_SIZE_MIN .+ STAR_SIZE_RANGE .* rand(n_stars).^3
+    # Vary transparency for depth effect
+    alphas = STAR_ALPHA_MIN .+ STAR_ALPHA_RANGE .* rand(n_stars)
     
     return x, y, z, sizes, alphas
 end
