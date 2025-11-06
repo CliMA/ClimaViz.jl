@@ -558,7 +558,7 @@ function setup_gradient_transparency_handler(state::AppState)
                 inverted
             )
             
-            # Update both 2D and 3D surface plots
+            # Update both 2D and 3D surface plots with RGBA colors
             state.surface_plot.color = gradient_colors
             state.surface_plot_3d.color = gradient_colors
             
@@ -566,9 +566,10 @@ function setup_gradient_transparency_handler(state::AppState)
             state.colorbar.visible = false
             state.colorbar_3d.visible = false
         else
-            # Restore colormap mode
-            state.surface_plot.color = nothing  # Reset to use colormap
-            state.surface_plot_3d.color = nothing
+            # Restore colormap mode by setting color back to the data values
+            # This allows the colormap and colorrange to work again
+            state.surface_plot.color = state.var_sliced[]
+            state.surface_plot_3d.color = state.var_sliced[]
             
             # Show colorbar again
             state.colorbar.visible = true

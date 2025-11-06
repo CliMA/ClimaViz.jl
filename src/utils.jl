@@ -76,8 +76,8 @@ function compute_gradient_transparency_colors(data, color_name, inverted)
         (1.0, 1.0, 1.0)  # default to white
     end
     
-    # Create RGBA colors
-    return [RGBAf(rgb[1], rgb[2], rgb[3], alpha_values[i]) for i in eachindex(alpha_values)]
+    # Create RGBA colors using broadcasting to preserve array structure
+    return RGBAf.(rgb[1], rgb[2], rgb[3], alpha_values)
 end
 
 # AppState struct to bundle all related observables and data
