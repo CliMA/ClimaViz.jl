@@ -545,8 +545,6 @@ function setup_gradient_transparency_handler(state::AppState)
         direction = state.gradient_direction[]
         color = state.gradient_color[]
         
-        println("Gradient transparency update: enabled=$gradient_enabled, direction=$direction, color=$color")
-        
         if gradient_enabled
             # Calculate gradient transparency colors
             inverted = (direction == "inverted")

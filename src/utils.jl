@@ -38,8 +38,17 @@ end
 # inverted: false for normal (transparent at low values), true for inverted (transparent at high values)
 function compute_gradient_transparency_colors(data, color_name, inverted)
     # Normalize data to 0-1
-    data_min = minimum(filter(!isnan, vec(data)))
-    data_max = maximum(filter(!isnan, vec(data)))
+    valid_data = filter(!isnan, vec(data))
+    
+    # Handle edge case where all values are NaN
+    if isempty(valid_data)
+        # Return fully transparent for all NaN data
+        rgb = (1.0, 1.0, 1.0)
+        return RGBAf.(rgb[1], rgb[2], rgb[3], 0.0)
+    end
+    
+    data_min = minimum(valid_data)
+    data_max = maximum(valid_data)
     
     # Handle edge case where all values are the same
     if data_max ≈ data_min
@@ -57,6 +66,9 @@ function compute_gradient_transparency_colors(data, color_name, inverted)
         # Transform and clamp to 0-1
         alpha_values = clamp.((alpha_values .- low_val) ./ (high_val - low_val), 0, 1)
     end
+    
+    # Replace any remaining NaN values with 0.0 (fully transparent)
+    alpha_values = replace(alpha_values, NaN => 0.0)
     
     # Invert if requested
     if inverted
