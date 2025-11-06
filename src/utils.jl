@@ -42,9 +42,10 @@ function compute_gradient_transparency_colors(data, color_name, inverted)
     
     # Handle edge case where all values are NaN
     if isempty(valid_data)
-        # Return fully transparent for all NaN data
+        # Return fully transparent array matching the input data shape
         rgb = (1.0, 1.0, 1.0)
-        return RGBAf.(rgb[1], rgb[2], rgb[3], 0.0)
+        alpha_values = zeros(Float64, size(data))
+        return RGBAf.(rgb[1], rgb[2], rgb[3], alpha_values)
     end
     
     data_min = minimum(valid_data)
