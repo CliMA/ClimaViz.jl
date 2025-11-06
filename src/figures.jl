@@ -71,6 +71,26 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
     return fig, ax, title, coastlines_plot, cbar
 end
 
+# Generate random star positions for the 3D space background
+function generate_stars(n_stars = 500)
+    # Generate random points distributed in a sphere around Earth
+    # Using spherical coordinates for better distribution
+    θ = 2π .* rand(n_stars)  # azimuthal angle
+    φ = acos.(2 .* rand(n_stars) .- 1)  # polar angle (uniform on sphere)
+    r = 1.8 .+ 0.3 .* rand(n_stars)  # radius (stars at varying distances, beyond Earth)
+    
+    # Convert to Cartesian coordinates
+    x = r .* sin.(φ) .* cos.(θ)
+    y = r .* sin.(φ) .* sin.(θ)
+    z = r .* cos.(φ)
+    
+    # Vary star brightness/size
+    sizes = 2.0 .+ 8.0 .* rand(n_stars).^3  # Most stars small, some larger
+    alphas = 0.3 .+ 0.7 .* rand(n_stars)  # Varying transparency
+    
+    return x, y, z, sizes, alphas
+end
+
 # Create main 3D globe figure
 function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, bg_color)
     # Large figure that fills screen naturally
@@ -79,6 +99,15 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
 
     # Use GlobeAxis for 3D globe with title
     ax = GeoMakie.GlobeAxis(fig[1, 1]; show_axis = false, title = title, titlesize = 16.0f0, titlevisible = true)
+
+    # Generate stars for the background (view from space)
+    star_x, star_y, star_z, star_sizes, star_alphas = generate_stars(500)
+    
+    # Add stars as scatter points in 3D space (will be visible only in dark mode)
+    stars_plot = meshscatter!(ax.scene, star_x, star_y, star_z,
+                             markersize = star_sizes,
+                             color = [(:white, alpha) for alpha in star_alphas],
+                             visible = false)  # Initially invisible (will be toggled by dark mode)
 
     # Load Earth image for background
     earth_img = FileIO.load(download("https://upload.wikimedia.org/wikipedia/commons/5/56/Blue_Marble_Next_Generation_%2B_topography_%2B_bathymetry.jpg"))
@@ -148,7 +177,7 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
         )
     end
 
-    return fig, ax, title, coastlines_plot_3d, cbar
+    return fig, ax, title, coastlines_plot_3d, cbar, stars_plot
 end
 
 # Create vertical profile figure

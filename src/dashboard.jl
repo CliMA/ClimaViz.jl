@@ -188,8 +188,8 @@ function dashboard(path)
         # Create figures (with white background initially)
         fig, ax, title, coastlines_plot, cbar = create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
         
-        # Create 3D globe figure
-        fig_3d, ax_3d, title_3d, coastlines_plot_3d, cbar_3d = create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
+        # Create 3D globe figure (with stars)
+        fig_3d, ax_3d, title_3d, coastlines_plot_3d, cbar_3d, stars_plot_3d = create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
 
         fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs, profile_box =
             create_profile_figure(var, heights, profile, profile_limits, current_height, profile_title, time_selected, :white, show_height)
@@ -297,6 +297,8 @@ function dashboard(path)
             cbar_3d.ticklabelcolor = text_color
             # Update 3D coastlines color
             coastlines_plot_3d.color = line_color
+            # Toggle stars visibility (visible only in dark mode)
+            stars_plot_3d.visible = is_dark
         end
 
         # Return layout
