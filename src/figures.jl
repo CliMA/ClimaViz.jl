@@ -104,10 +104,12 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
     star_x, star_y, star_z, star_sizes, star_alphas = generate_stars(500)
     
     # Add stars as scatter points in 3D space (will be visible only in dark mode)
-    stars_plot = meshscatter!(ax.scene, star_x, star_y, star_z,
-                             markersize = star_sizes,
-                             color = [(:white, alpha) for alpha in star_alphas],
-                             visible = false)  # Initially invisible (will be toggled by dark mode)
+    # Using the scene directly for 3D Cartesian coordinates (not projected on globe)
+    stars_plot = scatter!(ax.scene, star_x, star_y, star_z,
+                         markersize = star_sizes,
+                         color = [(:white, alpha) for alpha in star_alphas],
+                         marker = :circle,
+                         visible = false)  # Initially invisible (will be toggled by dark mode)
 
     # Load Earth image for background
     earth_img = FileIO.load(download("https://upload.wikimedia.org/wikipedia/commons/5/56/Blue_Marble_Next_Generation_%2B_topography_%2B_bathymetry.jpg"))
