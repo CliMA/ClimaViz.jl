@@ -90,7 +90,7 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
         )
     end
 
-    return fig, ax, title, coastlines_plot, cbar, p_colormap, p_rgba, rgba_colors, earth_surface
+    return fig, ax, title, coastlines_plot, cbar, p_colormap, p_rgba, rgba_colors, earth_surface, colorbar_label
 end
 
 # Create main 3D globe figure
@@ -182,14 +182,14 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
         )
     end
 
-    return fig, ax, title, coastlines_plot_3d, cbar, p_colormap, p_rgba, rgba_colors_3d, earth_surface, earth_img
+    return fig, ax, title, coastlines_plot_3d, cbar, p_colormap, p_rgba, rgba_colors_3d, earth_surface, earth_img, colorbar_label
 end
 
 # Create vertical profile figure
 function create_profile_figure(var, heights, profile, profile_limits, current_height,
                                profile_title, time_selected, bg_color, show_height)
-    # Scaled to 67% for better fit at 100% zoom
-    fig_profile = Figure(size = (400, 350), backgroundcolor = bg_color, figure_padding = 0)
+    # Increased size to take advantage of compact menu
+    fig_profile = Figure(size = (480, 420), backgroundcolor = bg_color, figure_padding = 0)
     profile_xlabel = Observable(string(ClimaAnalysis.short_name(var[]), " [", ClimaAnalysis.units(var[]), "]"))
 
     ax_profile = Axis(fig_profile[1, 1],
@@ -227,8 +227,8 @@ end
 
 # Create time series figure
 function create_timeseries_figure(var, dates_array, timeseries, timeseries_title, time_selected, bg_color)
-    # Scaled to 67% for better fit at 100% zoom
-    fig_timeseries = Figure(size = (400, 350), backgroundcolor = bg_color, figure_padding = 0)
+    # Increased size to take advantage of compact menu
+    fig_timeseries = Figure(size = (480, 420), backgroundcolor = bg_color, figure_padding = 0)
     timeseries_ylabel = Observable(string(ClimaAnalysis.short_name(var[]), " [", ClimaAnalysis.units(var[]), "]"))
 
     ax_timeseries = Axis(fig_timeseries[1, 1],

@@ -65,57 +65,83 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
         style = checkbox_row_style
     )
 
-    # Menu card with improved styling
+    # Menu card with improved styling and two-column layout
+    # Make it grey in white mode for better visual separation
     menu_card_style = Bonito.Styles(
         "padding" => "12px",
-        "border-radius" => "8px"
-    )
-    menu_card = Bonito.Card(
-        Bonito.Col(
-            Bonito.DOM.h1("Menu"; style = header_style),
-            dark_mode_row,
-            globe_3d_row,
-            transparency_gradient_row,
-            Bonito.Row(
-                Bonito.DOM.h1("Direction: "; style = label_style),
-                transparency_direction_menu;
-            ),
-            Bonito.Row(
-                Bonito.DOM.h1("Color: "; style = label_style),
-                transparency_color_menu;
-            ),
-            Bonito.Row(
-                Bonito.DOM.h1("Variable: "; style = label_style),
-                var_menu;
-            ),
-            Bonito.Row(
-                Bonito.DOM.h1("Reduction: "; style = label_style),
-                reduction_menu;
-            ),
-            Bonito.Row(
-                Bonito.DOM.h1("Period: "; style = label_style),
-                period_menu;
-            ),
-            Bonito.Row(
-                Bonito.DOM.h1("Time: "; style = label_style),
-                time_slider,
-                time_value_label;
-            ),
-            height_row,
-            animation_row;
-            height = "auto"
-        );
-        shadow_size = "0",
-        style = menu_card_style
+        "border-radius" => "8px",
+        "background-color" => "#f5f5f5"  # Light grey in white mode
     )
 
-    # Timeseries card
-    timeseries_card = Bonito.Card(fig_timeseries; shadow_size = "0")
+    # Left column: dark mode, 3D globe, variable, reduction, period
+    left_column = Bonito.Col(
+        dark_mode_row,
+        globe_3d_row,
+        Bonito.Row(
+            Bonito.DOM.h1("Variable: "; style = label_style),
+            var_menu;
+        ),
+        Bonito.Row(
+            Bonito.DOM.h1("Reduction: "; style = label_style),
+            reduction_menu;
+        ),
+        Bonito.Row(
+            Bonito.DOM.h1("Period: "; style = label_style),
+            period_menu;
+        );
+        height = "auto"
+    )
+
+    # Right column: transparency gradient, direction, color, time, height, play
+    right_column = Bonito.Col(
+        transparency_gradient_row,
+        Bonito.Row(
+            Bonito.DOM.h1("Direction: "; style = label_style),
+            transparency_direction_menu;
+        ),
+        Bonito.Row(
+            Bonito.DOM.h1("Color: "; style = label_style),
+            transparency_color_menu;
+        ),
+        Bonito.Row(
+            Bonito.DOM.h1("Time: "; style = label_style),
+            time_slider,
+            time_value_label;
+        ),
+        height_row,
+        animation_row;
+        height = "auto"
+    )
+
+    menu_card = Bonito.Card(
+        Bonito.Grid(
+            left_column,
+            right_column;
+            columns = "1fr 1fr",
+            gap = "10px"
+        );
+        shadow_size = "0",
+        style = menu_card_style,
+        class = "menu-card"
+    )
+
+    # Timeseries card with centering
+    card_center_style = Bonito.Styles(
+        "display" => "flex",
+        "justify-content" => "center",
+        "width" => "100%"
+    )
+    timeseries_card = Bonito.DOM.div(
+        Bonito.Card(fig_timeseries; shadow_size = "0");
+        style = card_center_style
+    )
 
     # Profile card - now always shows the profile figure
     # When there's no height dimension, the Makie.Box inside covers it
-    profile_card = Bonito.Card(fig_profile; shadow_size = "0")
-
+    profile_card = Bonito.DOM.div(
+        Bonito.Card(fig_profile; shadow_size = "0");
+        style = card_center_style
+    )
 
     # Left sidebar with all controls stacked vertically
     left_sidebar = Bonito.Col(

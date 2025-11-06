@@ -202,10 +202,10 @@ function dashboard(path)
         timeseries_title = Observable(timeseries_title_string(var[], heights, height_selected[], lon_profile[], lat_profile[]))
 
         # Create figures (with white background initially)
-        fig, ax, title, coastlines_plot, cbar, surface_plot_colormap, surface_plot_rgba, rgba_colors, earth_surface = create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
+        fig, ax, title, coastlines_plot, cbar, surface_plot_colormap, surface_plot_rgba, rgba_colors, earth_surface, colorbar_label = create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
 
         # Create 3D globe figure
-        fig_3d, ax_3d, title_3d, coastlines_plot_3d, cbar_3d, surface_plot_3d_colormap, surface_plot_3d_rgba, rgba_colors_3d, earth_surface_3d, earth_img = create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
+        fig_3d, ax_3d, title_3d, coastlines_plot_3d, cbar_3d, surface_plot_3d_colormap, surface_plot_3d_rgba, rgba_colors_3d, earth_surface_3d, earth_img, colorbar_label_3d = create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
 
         fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs, profile_box =
             create_profile_figure(var, heights, profile, profile_limits, current_height, profile_title, time_selected, :white, show_height)
@@ -239,12 +239,12 @@ function dashboard(path)
             dark_mode, Observable(:white),  # fig_bg_color (not used anymore but kept for compatibility)
             show_height,
             transparency_gradient, transparency_direction, transparency_color,
-            ax, ax_3d, ax_profile, ax_timeseries, profile_lines, profile_hlines, timeseries_lines, coastlines_plot, cbar, profile_box,
+            ax, ax_3d, ax_profile, ax_timeseries, profile_lines, profile_hlines, timeseries_lines, coastlines_plot, cbar, cbar_3d, colorbar_label, colorbar_label_3d, profile_box,
             surface_plot_colormap, surface_plot_rgba, surface_plot_3d_colormap, surface_plot_3d_rgba,
             rgba_colors, rgba_colors_3d,
             earth_surface, earth_surface_3d, earth_img,
             lon, lat,
-            fig, fig_profile, fig_timeseries,
+            fig, fig_3d, fig_profile, fig_timeseries,
             n_ticks,
             false  # updating flag
         )

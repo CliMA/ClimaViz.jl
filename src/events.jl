@@ -459,6 +459,10 @@ function setup_transparency_gradient_handler(state::AppState)
             state.surface_plot_3d_colormap.visible = false
             state.surface_plot_3d_rgba.visible = true
 
+            # Delete colorbars when entering transparency gradient mode
+            delete!(state.colorbar)
+            delete!(state.colorbar_3d)
+
             # Show earth surfaces for background
             state.earth_surface.visible = true
             state.earth_surface_3d.visible = true
@@ -472,6 +476,39 @@ function setup_transparency_gradient_handler(state::AppState)
             state.surface_plot_rgba.visible = false
             state.surface_plot_3d_colormap.visible = true
             state.surface_plot_3d_rgba.visible = false
+
+            # Recreate colorbars when exiting transparency gradient mode
+            state.colorbar = Colorbar(
+                state.fig[1, 1],
+                state.surface_plot_colormap,
+                vertical = false,
+                colorrange = state.limits,
+                width = Relative(0.25),
+                height = 13,
+                ticklabelsize = 16.0,
+                label = state.colorbar_label,
+                labelsize = 19.0,
+                halign = :right,
+                valign = :bottom,
+                tellheight = false,
+                tellwidth = false
+            )
+
+            state.colorbar_3d = Colorbar(
+                state.fig_3d[1, 1],
+                state.surface_plot_3d_colormap,
+                vertical = false,
+                colorrange = state.limits,
+                width = Relative(0.25),
+                height = 13,
+                ticklabelsize = 16.0,
+                label = state.colorbar_label_3d,
+                labelsize = 19.0,
+                halign = :right,
+                valign = :bottom,
+                tellheight = false,
+                tellwidth = false
+            )
 
             # Hide 2D earth surface, keep 3D earth visible
             state.earth_surface.visible = false
@@ -526,8 +563,14 @@ function setup_dark_mode_handler(state::AppState, session)
         if (is_dark) {
             document.body.style.backgroundColor = 'black';
             document.body.style.color = 'white';
-            // Update all cards
-            document.querySelectorAll('.card').forEach(card => {
+            // Update menu card specifically (grey background)
+            document.querySelectorAll('.menu-card').forEach(card => {
+                card.style.backgroundColor = '#1a1a1a';
+                card.style.color = 'white';
+                card.style.borderColor = '#1a1a1a';
+            });
+            // Update other cards (black background)
+            document.querySelectorAll('.card:not(.menu-card)').forEach(card => {
                 card.style.backgroundColor = 'black';
                 card.style.color = 'white';
                 card.style.borderColor = 'black';
@@ -562,8 +605,14 @@ function setup_dark_mode_handler(state::AppState, session)
         } else {
             document.body.style.backgroundColor = 'white';
             document.body.style.color = 'black';
-            // Update all cards
-            document.querySelectorAll('.card').forEach(card => {
+            // Update menu card specifically (grey background)
+            document.querySelectorAll('.menu-card').forEach(card => {
+                card.style.backgroundColor = '#f5f5f5';
+                card.style.color = 'black';
+                card.style.borderColor = '#e0e0e0';
+            });
+            // Update other cards (white background)
+            document.querySelectorAll('.card:not(.menu-card)').forEach(card => {
                 card.style.backgroundColor = 'white';
                 card.style.color = 'black';
                 card.style.borderColor = '#e0e0e0';

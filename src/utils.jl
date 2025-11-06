@@ -87,6 +87,9 @@ mutable struct AppState
     timeseries_lines::Any
     coastlines_plot::Any
     colorbar::Any
+    colorbar_3d::Any
+    colorbar_label::Observable
+    colorbar_label_3d::Observable
     profile_box::Any
     surface_plot_colormap::Any
     surface_plot_rgba::Any
@@ -102,6 +105,7 @@ mutable struct AppState
 
     # Figures for background color updates
     fig::Any
+    fig_3d::Any
     fig_profile::Any
     fig_timeseries::Any
 
