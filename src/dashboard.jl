@@ -145,6 +145,22 @@ function dashboard(path)
         globe_3d_checkbox = Bonito.Checkbox(false; style = checkbox_style)
         globe_3d = globe_3d_checkbox.value
 
+        # Create transparency gradient checkbox and controls
+        transparency_gradient_checkbox = Bonito.Checkbox(false; style = checkbox_style)
+        transparency_gradient = transparency_gradient_checkbox.value
+
+        # Dropdown for normal/inverted transparency
+        transparency_direction_options = ["normal", "inverted"]
+        transparency_direction_menu = Bonito.Dropdown(transparency_direction_options; style = dropdown_style)
+        transparency_direction_menu.value[] = "normal"
+        transparency_direction = transparency_direction_menu.value
+
+        # Dropdown for color selection
+        color_options = ["white", "black", "green", "blue"]
+        transparency_color_menu = Bonito.Dropdown(color_options; style = dropdown_style)
+        transparency_color_menu.value[] = "white"
+        transparency_color = transparency_color_menu.value
+
         # Create observable for showing height dimension
         show_height = Observable(has_height(var[]))
 
@@ -186,10 +202,10 @@ function dashboard(path)
         timeseries_title = Observable(timeseries_title_string(var[], heights, height_selected[], lon_profile[], lat_profile[]))
 
         # Create figures (with white background initially)
-        fig, ax, title, coastlines_plot, cbar = create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
-        
+        fig, ax, title, coastlines_plot, cbar, surface_plot_colormap, surface_plot_rgba, rgba_colors, earth_surface = create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
+
         # Create 3D globe figure
-        fig_3d, ax_3d, title_3d, coastlines_plot_3d, cbar_3d = create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
+        fig_3d, ax_3d, title_3d, coastlines_plot_3d, cbar_3d, surface_plot_3d_colormap, surface_plot_3d_rgba, rgba_colors_3d, earth_surface_3d, earth_img = create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
 
         fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs, profile_box =
             create_profile_figure(var, heights, profile, profile_limits, current_height, profile_title, time_selected, :white, show_height)
@@ -222,7 +238,12 @@ function dashboard(path)
             time_value_text, height_value_text, speed_value_text,
             dark_mode, Observable(:white),  # fig_bg_color (not used anymore but kept for compatibility)
             show_height,
-            ax, ax_profile, ax_timeseries, profile_lines, profile_hlines, timeseries_lines, coastlines_plot, cbar, profile_box,
+            transparency_gradient, transparency_direction, transparency_color,
+            ax, ax_3d, ax_profile, ax_timeseries, profile_lines, profile_hlines, timeseries_lines, coastlines_plot, cbar, profile_box,
+            surface_plot_colormap, surface_plot_rgba, surface_plot_3d_colormap, surface_plot_3d_rgba,
+            rgba_colors, rgba_colors_3d,
+            earth_surface, earth_surface_3d, earth_img,
+            lon, lat,
             fig, fig_profile, fig_timeseries,
             n_ticks,
             false  # updating flag
@@ -249,6 +270,7 @@ function dashboard(path)
         setup_height_handler(height_slider, state)
         setup_speed_handler(speed_slider, state)
         setup_play_handler(play_button, time_slider, state)
+        setup_transparency_gradient_handler(state)
         setup_dark_mode_handler(state, session)
 
         # Toggle profile_box visibility and axis decorations when show_height changes
@@ -302,7 +324,8 @@ function dashboard(path)
         # Return layout
         return layout(var_menu, reduction_menu, period_menu, time_slider, height_slider, play_button, speed_slider,
                      fig, fig_3d, fig_profile, fig_timeseries, show_height, profile_lines, profile_hlines,
-                     time_value_label, height_value_label, speed_value_label, dark_mode_checkbox, globe_3d_checkbox, globe_3d, dark_mode)
+                     time_value_label, height_value_label, speed_value_label, dark_mode_checkbox, globe_3d_checkbox, globe_3d, dark_mode,
+                     transparency_gradient_checkbox, transparency_direction_menu, transparency_color_menu)
     end
 
     IP = "127.0.0.1"

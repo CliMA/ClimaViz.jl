@@ -15,15 +15,37 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
     # Deactivate zoom via scroll
     deactivate_interaction!(ax, :scrollzoom)
 
-    # Surface plot
-    p = surface!(ax, lon, lat, var_sliced,
+    # Load Earth image for optional background
+    earth_img = FileIO.load(download("https://upload.wikimedia.org/wikipedia/commons/5/56/Blue_Marble_Next_Generation_%2B_topography_%2B_bathymetry.jpg"))
+
+    # Add Earth image as base surface (initially hidden)
+    earth_surface = surface!(ax,
+             -180..180, -90..90,
+             zeros(axes(rotr90(earth_img)));
+             shading = NoShading,
+             color = rotr90(earth_img),
+             visible = false)  # Hidden by default
+
+    # Create observable for RGBA colors
+    rgba_colors = Observable(RGBAf.(1.0, 1.0, 1.0, ones(size(var_sliced[]))))
+
+    # Surface plot with colormap (initially visible)
+    p_colormap = surface!(ax, lon, lat, var_sliced,
                  colorrange = limits,
                  lowclip = (:black, 0.8),
                  highclip = (:yellow, 0.9),
                  shading = NoShading,
                  colormap = :thermal,
                  transparency = true,
-                 alpha = 0.9)
+                 alpha = 0.9,
+                 visible = true)
+
+    # Surface plot with RGBA colors (initially hidden)
+    p_rgba = surface!(ax, lon, lat, var_sliced,
+                 color = rgba_colors,
+                 shading = NoShading,
+                 transparency = true,
+                 visible = false)
 
     coastlines_plot = lines!(ax, GeoMakie.coastlines(), color = :black)
 
@@ -44,7 +66,7 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
     # Horizontal colorbar at bottom-right inside the map
     cbar = Colorbar(
              fig[1, 1],
-             p,
+             p_colormap,
              vertical = false,
              colorrange = limits,
              width = Relative(0.25),
@@ -68,7 +90,7 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
         )
     end
 
-    return fig, ax, title, coastlines_plot, cbar
+    return fig, ax, title, coastlines_plot, cbar, p_colormap, p_rgba, rgba_colors, earth_surface
 end
 
 # Create main 3D globe figure
@@ -84,7 +106,7 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
     earth_img = FileIO.load(download("https://upload.wikimedia.org/wikipedia/commons/5/56/Blue_Marble_Next_Generation_%2B_topography_%2B_bathymetry.jpg"))
 
     # Add Earth image as base surface at z=0
-    surface!(ax,
+    earth_surface = surface!(ax,
              -180..180, -90..90,
              zeros(axes(rotr90(earth_img)));
              shading = NoShading,
@@ -92,8 +114,11 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
              backlight = 1.5f0,
             )
 
-    # Surface plot on globe at elevated z-level (above Earth surface)
-    p = surface!(ax, lon, lat, var_sliced,
+    # Create observable for RGBA colors (3D)
+    rgba_colors_3d = Observable(RGBAf.(1.0, 1.0, 1.0, ones(size(var_sliced[]))))
+
+    # Surface plot on globe with colormap (initially visible)
+    p_colormap = surface!(ax, lon, lat, var_sliced,
                  colorrange = limits,
                  lowclip = (:black, 0.8),
                  highclip = (:yellow, 0.9),
@@ -101,7 +126,16 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
                  colormap = :thermal,
                  transparency = true,
                  alpha = 0.9,
-                 zlevel = 20_000)
+                 zlevel = 20_000,
+                 visible = true)
+
+    # Surface plot on globe with RGBA colors (initially hidden)
+    p_rgba = surface!(ax, lon, lat, var_sliced,
+                 color = rgba_colors_3d,
+                 shading = NoShading,
+                 transparency = true,
+                 zlevel = 20_000,
+                 visible = false)
 
     # Add coastlines for 3D globe (black lines, will change with dark mode)
     coastlines_plot_3d = lines!(ax, GeoMakie.coastlines(), color = :black)
@@ -124,7 +158,7 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
     # Horizontal colorbar at bottom-right inside the map
     cbar = Colorbar(
              fig[1, 1],
-             p,
+             p_colormap,
              vertical = false,
              colorrange = limits,
              width = Relative(0.25),
@@ -148,7 +182,7 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
         )
     end
 
-    return fig, ax, title, coastlines_plot_3d, cbar
+    return fig, ax, title, coastlines_plot_3d, cbar, p_colormap, p_rgba, rgba_colors_3d, earth_surface, earth_img
 end
 
 # Create vertical profile figure

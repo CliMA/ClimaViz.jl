@@ -394,6 +394,130 @@ function setup_play_handler(play_button, time_slider, state::AppState)
     end
 end
 
+# Handle transparency gradient changes
+function setup_transparency_gradient_handler(state::AppState)
+    # Helper function to compute RGBA colors from data
+    function compute_rgba_colors(data, direction, color_choice)
+        # Filter out NaN values for min/max calculations
+        valid_data = filter(!isnan, vec(data))
+
+        # If no valid data, return default white with full alpha
+        if isempty(valid_data)
+            return RGBAf.(1.0, 1.0, 1.0, ones(size(data)))
+        end
+
+        # Normalize data to 0-1 for alpha values
+        data_min = minimum(valid_data)
+        data_max = maximum(valid_data)
+
+        # Handle case where all data is the same value
+        if data_min ≈ data_max
+            alpha_values = fill(0.5, size(data))
+        else
+            alpha_values = (data .- data_min) ./ (data_max - data_min)
+
+            # Handle NaN values - set them to 0 alpha (fully transparent)
+            alpha_values = replace(alpha_values, NaN => 0.0)
+
+            # Apply quantile-based transformation like in the cloud examples
+            valid_alphas = filter(!isnan, vec(alpha_values))
+            low_val = Statistics.quantile(valid_alphas, 0.2)
+            high_val = Statistics.quantile(valid_alphas, 0.85)
+            transform(x) = clamp((x - low_val) / (high_val - low_val), 0, 1)
+            alpha_values = transform.(alpha_values)
+        end
+
+        # Invert if needed
+        if direction == "inverted"
+            alpha_values = 1.0 .- alpha_values
+        end
+
+        # Map color name to RGB values
+        rgb = if color_choice == "white"
+            (1.0, 1.0, 1.0)
+        elseif color_choice == "black"
+            (0.0, 0.0, 0.0)
+        elseif color_choice == "green"
+            (0.0, 1.0, 0.0)
+        else  # blue
+            (0.0, 0.0, 1.0)
+        end
+
+        # Create RGBA array
+        return RGBAf.(rgb[1], rgb[2], rgb[3], alpha_values)
+    end
+
+    # Function to toggle between colormap and RGBA mode
+    function toggle_mode()
+        is_gradient = state.transparency_gradient[]
+
+        if is_gradient
+            # Switch to RGBA mode
+            # Show colormap surfaces, hide RGBA surfaces
+            state.surface_plot_colormap.visible = false
+            state.surface_plot_rgba.visible = true
+            state.surface_plot_3d_colormap.visible = false
+            state.surface_plot_3d_rgba.visible = true
+
+            # Show earth surfaces for background
+            state.earth_surface.visible = true
+            state.earth_surface_3d.visible = true
+
+            # Update RGBA colors
+            update_rgba_colors()
+        else
+            # Switch to colormap mode
+            # Show colormap surfaces, hide RGBA surfaces
+            state.surface_plot_colormap.visible = true
+            state.surface_plot_rgba.visible = false
+            state.surface_plot_3d_colormap.visible = true
+            state.surface_plot_3d_rgba.visible = false
+
+            # Hide 2D earth surface, keep 3D earth visible
+            state.earth_surface.visible = false
+            state.earth_surface_3d.visible = true
+        end
+    end
+
+    # Function to update RGBA colors based on current data
+    function update_rgba_colors()
+        data = state.var_sliced[]
+        direction = state.transparency_direction[]
+        color_choice = state.transparency_color[]
+
+        rgba = compute_rgba_colors(data, direction, color_choice)
+
+        # Update both RGBA color observables
+        state.rgba_colors[] = rgba
+        state.rgba_colors_3d[] = rgba
+    end
+
+    # Set up observer for transparency gradient checkbox
+    on(state.transparency_gradient) do _
+        toggle_mode()
+    end
+
+    # Set up observers for direction and color changes (only update if in gradient mode)
+    on(state.transparency_direction) do _
+        if state.transparency_gradient[]
+            update_rgba_colors()
+        end
+    end
+
+    on(state.transparency_color) do _
+        if state.transparency_gradient[]
+            update_rgba_colors()
+        end
+    end
+
+    # Update RGBA colors when data changes (time or height slider moved)
+    on(state.var_sliced) do _
+        if state.transparency_gradient[]
+            update_rgba_colors()
+        end
+    end
+end
+
 # Handle dark mode toggle
 function setup_dark_mode_handler(state::AppState, session)
     # Set up JavaScript callback for CSS changes

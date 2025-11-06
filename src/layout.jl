@@ -2,7 +2,8 @@ export layout
 
 function layout(var_menu, reduction_menu, period_menu, time_slider, height_slider, play_button, speed_slider,
                 fig, fig_3d, fig_profile, fig_timeseries, show_height, profile_lines, profile_hlines,
-                time_value_label, height_value_label, speed_value_label, dark_mode_checkbox, globe_3d_checkbox, globe_3d, dark_mode)
+                time_value_label, height_value_label, speed_value_label, dark_mode_checkbox, globe_3d_checkbox, globe_3d, dark_mode,
+                transparency_gradient_checkbox, transparency_direction_menu, transparency_color_menu)
     label_style = Bonito.Styles(
         "font-size" => "0.9rem",
         "font-weight" => "600",
@@ -56,6 +57,14 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
         style = checkbox_row_style
     )
 
+    # Transparency gradient row with improved layout
+    transparency_gradient_label = Bonito.DOM.span("Transparency Gradient: "; style = label_style)
+    transparency_gradient_row = Bonito.DOM.div(
+        transparency_gradient_label,
+        transparency_gradient_checkbox;
+        style = checkbox_row_style
+    )
+
     # Menu card with improved styling
     menu_card_style = Bonito.Styles(
         "padding" => "12px",
@@ -66,6 +75,15 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
             Bonito.DOM.h1("Menu"; style = header_style),
             dark_mode_row,
             globe_3d_row,
+            transparency_gradient_row,
+            Bonito.Row(
+                Bonito.DOM.h1("Direction: "; style = label_style),
+                transparency_direction_menu;
+            ),
+            Bonito.Row(
+                Bonito.DOM.h1("Color: "; style = label_style),
+                transparency_color_menu;
+            ),
             Bonito.Row(
                 Bonito.DOM.h1("Variable: "; style = label_style),
                 var_menu;
