@@ -33,6 +33,53 @@ function get_profile_limits_all_times(var::OutputVar4D, lon, lat; padding_fracti
     return (profile_min - padding, profile_max + padding)
 end
 
+# Compute gradient transparency colors from data
+# color_name: :white, :black, :green, :blue
+# inverted: false for normal (transparent at low values), true for inverted (transparent at high values)
+function compute_gradient_transparency_colors(data, color_name, inverted)
+    # Normalize data to 0-1
+    data_min = minimum(filter(!isnan, vec(data)))
+    data_max = maximum(filter(!isnan, vec(data)))
+    
+    # Handle edge case where all values are the same
+    if data_max ≈ data_min
+        alpha_values = fill(0.5, size(data))
+    else
+        alpha_values = (data .- data_min) ./ (data_max - data_min)
+    end
+    
+    # Apply quantile-based transformation for better visualization
+    valid_alphas = filter(!isnan, vec(alpha_values))
+    if length(valid_alphas) > 0
+        low_val = Statistics.quantile(valid_alphas, 0.2)
+        high_val = Statistics.quantile(valid_alphas, 0.85)
+        
+        # Transform and clamp to 0-1
+        alpha_values = clamp.((alpha_values .- low_val) ./ (high_val - low_val), 0, 1)
+    end
+    
+    # Invert if requested
+    if inverted
+        alpha_values = 1.0 .- alpha_values
+    end
+    
+    # Get RGB values for the color
+    rgb = if color_name == :white
+        (1.0, 1.0, 1.0)
+    elseif color_name == :black
+        (0.0, 0.0, 0.0)
+    elseif color_name == :green
+        (0.0, 1.0, 0.0)
+    elseif color_name == :blue
+        (0.0, 0.5, 1.0)
+    else
+        (1.0, 1.0, 1.0)  # default to white
+    end
+    
+    # Create RGBA colors
+    return [RGBAf(rgb[1], rgb[2], rgb[3], alpha_values[i]) for i in eachindex(alpha_values)]
+end
+
 # AppState struct to bundle all related observables and data
 mutable struct AppState
     # Data
@@ -73,6 +120,9 @@ mutable struct AppState
     dark_mode::Observable
     fig_bg_color::Observable
     show_height::Observable
+    gradient_transparency::Observable
+    gradient_direction::Observable
+    gradient_color::Observable
 
     # Axes and visual elements
     ax::Any
@@ -84,11 +134,19 @@ mutable struct AppState
     coastlines_plot::Any
     colorbar::Any
     profile_box::Any
+    
+    # 3D figure elements
+    ax_3d::Any
+    coastlines_plot_3d::Any
+    colorbar_3d::Any
+    surface_plot::Any
+    surface_plot_3d::Any
 
     # Figures for background color updates
     fig::Any
     fig_profile::Any
     fig_timeseries::Any
+    fig_3d::Any
 
     # Other
     n_ticks::Int

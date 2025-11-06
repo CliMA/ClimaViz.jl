@@ -536,3 +536,67 @@ function setup_dark_mode_handler(state::AppState, session)
         state.timeseries_lines.color = line_color
     end
 end
+
+# Handle gradient transparency toggle and settings
+function setup_gradient_transparency_handler(state::AppState)
+    # Handler for when any of the gradient transparency settings change
+    update_transparency = () -> begin
+        gradient_enabled = state.gradient_transparency[]
+        direction = state.gradient_direction[]
+        color = state.gradient_color[]
+        
+        println("Gradient transparency update: enabled=$gradient_enabled, direction=$direction, color=$color")
+        
+        if gradient_enabled
+            # Calculate gradient transparency colors
+            inverted = (direction == "inverted")
+            color_symbol = Symbol(color)
+            
+            gradient_colors = compute_gradient_transparency_colors(
+                state.var_sliced[],
+                color_symbol,
+                inverted
+            )
+            
+            # Update both 2D and 3D surface plots
+            state.surface_plot.color = gradient_colors
+            state.surface_plot_3d.color = gradient_colors
+            
+            # Hide colorbar when using gradient transparency
+            state.colorbar.visible = false
+            state.colorbar_3d.visible = false
+        else
+            # Restore colormap mode
+            state.surface_plot.color = nothing  # Reset to use colormap
+            state.surface_plot_3d.color = nothing
+            
+            # Show colorbar again
+            state.colorbar.visible = true
+            state.colorbar_3d.visible = true
+        end
+    end
+    
+    # Set up handlers for all three controls
+    on(state.gradient_transparency) do _
+        update_transparency()
+    end
+    
+    on(state.gradient_direction) do _
+        if state.gradient_transparency[]
+            update_transparency()
+        end
+    end
+    
+    on(state.gradient_color) do _
+        if state.gradient_transparency[]
+            update_transparency()
+        end
+    end
+    
+    # Also update when var_sliced changes (time/height changes)
+    on(state.var_sliced) do _
+        if state.gradient_transparency[]
+            update_transparency()
+        end
+    end
+end

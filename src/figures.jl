@@ -68,7 +68,7 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
         )
     end
 
-    return fig, ax, title, coastlines_plot, cbar
+    return fig, ax, title, coastlines_plot, cbar, p
 end
 
 # Create main 3D globe figure
@@ -148,7 +148,7 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
         )
     end
 
-    return fig, ax, title, coastlines_plot_3d, cbar
+    return fig, ax, title, coastlines_plot_3d, cbar, p
 end
 
 # Create vertical profile figure

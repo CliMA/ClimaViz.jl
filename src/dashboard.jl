@@ -144,6 +144,20 @@ function dashboard(path)
         # Create 3D globe checkbox with improved styling
         globe_3d_checkbox = Bonito.Checkbox(false; style = checkbox_style)
         globe_3d = globe_3d_checkbox.value
+        
+        # Create gradient transparency checkbox with improved styling
+        gradient_transparency_checkbox = Bonito.Checkbox(false; style = checkbox_style)
+        gradient_transparency = gradient_transparency_checkbox.value
+        
+        # Create gradient direction dropdown (normal or inverted)
+        gradient_direction_menu = Bonito.Dropdown(["normal", "inverted"]; style = dropdown_style)
+        gradient_direction_menu.value[] = "normal"
+        gradient_direction = gradient_direction_menu.value
+        
+        # Create gradient color dropdown
+        gradient_color_menu = Bonito.Dropdown(["white", "black", "green", "blue"]; style = dropdown_style)
+        gradient_color_menu.value[] = "white"
+        gradient_color = gradient_color_menu.value
 
         # Create observable for showing height dimension
         show_height = Observable(has_height(var[]))
@@ -186,10 +200,10 @@ function dashboard(path)
         timeseries_title = Observable(timeseries_title_string(var[], heights, height_selected[], lon_profile[], lat_profile[]))
 
         # Create figures (with white background initially)
-        fig, ax, title, coastlines_plot, cbar = create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
+        fig, ax, title, coastlines_plot, cbar, surface_plot = create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
         
         # Create 3D globe figure
-        fig_3d, ax_3d, title_3d, coastlines_plot_3d, cbar_3d = create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
+        fig_3d, ax_3d, title_3d, coastlines_plot_3d, cbar_3d, surface_plot_3d = create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
 
         fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs, profile_box =
             create_profile_figure(var, heights, profile, profile_limits, current_height, profile_title, time_selected, :white, show_height)
@@ -222,8 +236,10 @@ function dashboard(path)
             time_value_text, height_value_text, speed_value_text,
             dark_mode, Observable(:white),  # fig_bg_color (not used anymore but kept for compatibility)
             show_height,
+            gradient_transparency, gradient_direction, gradient_color,
             ax, ax_profile, ax_timeseries, profile_lines, profile_hlines, timeseries_lines, coastlines_plot, cbar, profile_box,
-            fig, fig_profile, fig_timeseries,
+            ax_3d, coastlines_plot_3d, cbar_3d, surface_plot, surface_plot_3d,
+            fig, fig_profile, fig_timeseries, fig_3d,
             n_ticks,
             false  # updating flag
         )
@@ -250,6 +266,7 @@ function dashboard(path)
         setup_speed_handler(speed_slider, state)
         setup_play_handler(play_button, time_slider, state)
         setup_dark_mode_handler(state, session)
+        setup_gradient_transparency_handler(state)
 
         # Toggle profile_box visibility and axis decorations when show_height changes
         # The box is visible when there's no height dimension (covers the profile)
@@ -302,7 +319,8 @@ function dashboard(path)
         # Return layout
         return layout(var_menu, reduction_menu, period_menu, time_slider, height_slider, play_button, speed_slider,
                      fig, fig_3d, fig_profile, fig_timeseries, show_height, profile_lines, profile_hlines,
-                     time_value_label, height_value_label, speed_value_label, dark_mode_checkbox, globe_3d_checkbox, globe_3d, dark_mode)
+                     time_value_label, height_value_label, speed_value_label, dark_mode_checkbox, globe_3d_checkbox, globe_3d, dark_mode,
+                     gradient_transparency_checkbox, gradient_direction_menu, gradient_color_menu)
     end
 
     IP = "127.0.0.1"
