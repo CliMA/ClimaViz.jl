@@ -363,6 +363,13 @@ function setup_speed_handler(speed_slider, state::AppState)
     end
 end
 
+# Handle quantiles slider changes
+function setup_quantiles_handler(quantiles_slider, state::AppState)
+    on(quantiles_slider.value) do q
+        state.quantiles_value_text[] = string(round(Int, q * 100), "%")
+    end
+end
+
 # Handle play button for animation
 function setup_play_handler(play_button, time_slider, state::AppState)
     n_times = length(state.times)
@@ -397,7 +404,7 @@ end
 # Handle transparency gradient changes
 function setup_transparency_gradient_handler(state::AppState)
     # Helper function to compute RGBA colors from data
-    function compute_rgba_colors(data, direction, color_choice)
+    function compute_rgba_colors(data, direction, color_choice, quantiles_threshold)
         # Filter out NaN values for min/max calculations
         valid_data = filter(!isnan, vec(data))
 
@@ -419,11 +426,11 @@ function setup_transparency_gradient_handler(state::AppState)
             # Handle NaN values - set them to 0 alpha (fully transparent)
             alpha_values = replace(alpha_values, NaN => 0.0)
 
-            # Apply quantile-based transformation with softer/wider range
-            # Using wider quantiles (0.05, 0.95) for gentler transition
+            # Apply quantile-based transformation with configurable quantiles
+            # quantiles_threshold controls the lower quantile, upper is (1 - quantiles_threshold)
             valid_alphas = filter(!isnan, vec(alpha_values))
-            low_val = Statistics.quantile(valid_alphas, 0.05)
-            high_val = Statistics.quantile(valid_alphas, 0.95)
+            low_val = Statistics.quantile(valid_alphas, quantiles_threshold)
+            high_val = Statistics.quantile(valid_alphas, 1.0 - quantiles_threshold)
             transform(x) = clamp((x - low_val) / (high_val - low_val), 0, 1)
             alpha_values = transform.(alpha_values)
         end
@@ -530,8 +537,9 @@ function setup_transparency_gradient_handler(state::AppState)
         data = state.var_sliced[]
         direction = state.transparency_direction[]
         color_choice = state.transparency_color[]
+        quantiles_threshold = state.transparency_quantiles[]
 
-        rgba = compute_rgba_colors(data, direction, color_choice)
+        rgba = compute_rgba_colors(data, direction, color_choice, quantiles_threshold)
 
         # Update both RGBA color observables
         state.rgba_colors[] = rgba
@@ -551,6 +559,12 @@ function setup_transparency_gradient_handler(state::AppState)
     end
 
     on(state.transparency_color) do _
+        if state.transparency_gradient[]
+            update_rgba_colors()
+        end
+    end
+
+    on(state.transparency_quantiles) do _
         if state.transparency_gradient[]
             update_rgba_colors()
         end
