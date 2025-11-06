@@ -564,10 +564,10 @@ function setup_gradient_transparency_handler(state::AppState)
             state.colorbar.visible = false
             state.colorbar_3d.visible = false
         else
-            # Restore colormap mode by setting color back to the data values
+            # Restore colormap mode by setting color back to the data observable
             # This allows the colormap and colorrange to work again
-            state.surface_plot.color = state.var_sliced[]
-            state.surface_plot_3d.color = state.var_sliced[]
+            state.surface_plot.color = state.var_sliced
+            state.surface_plot_3d.color = state.var_sliced
             
             # Show colorbar again
             state.colorbar.visible = true
