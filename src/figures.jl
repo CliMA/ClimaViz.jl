@@ -15,15 +15,37 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
     # Deactivate zoom via scroll
     deactivate_interaction!(ax, :scrollzoom)
 
-    # Surface plot
-    p = surface!(ax, lon, lat, var_sliced,
+    # Load Earth image for optional background
+    earth_img = FileIO.load(download("https://upload.wikimedia.org/wikipedia/commons/5/56/Blue_Marble_Next_Generation_%2B_topography_%2B_bathymetry.jpg"))
+
+    # Add Earth image as base surface (initially hidden)
+    earth_surface = surface!(ax,
+             -180..180, -90..90,
+             zeros(axes(rotr90(earth_img)));
+             shading = NoShading,
+             color = rotr90(earth_img),
+             visible = false)  # Hidden by default
+
+    # Create observable for RGBA colors
+    rgba_colors = Observable(RGBAf.(1.0, 1.0, 1.0, ones(size(var_sliced[]))))
+
+    # Surface plot with colormap (initially visible)
+    p_colormap = surface!(ax, lon, lat, var_sliced,
                  colorrange = limits,
                  lowclip = (:black, 0.8),
                  highclip = (:yellow, 0.9),
                  shading = NoShading,
                  colormap = :thermal,
                  transparency = true,
-                 alpha = 0.9)
+                 alpha = 0.9,
+                 visible = true)
+
+    # Surface plot with RGBA colors (initially hidden)
+    p_rgba = surface!(ax, lon, lat, var_sliced,
+                 color = rgba_colors,
+                 shading = NoShading,
+                 transparency = true,
+                 visible = false)
 
     coastlines_plot = lines!(ax, GeoMakie.coastlines(), color = :black)
 
@@ -44,7 +66,7 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
     # Horizontal colorbar at bottom-right inside the map
     cbar = Colorbar(
              fig[1, 1],
-             p,
+             p_colormap,
              vertical = false,
              colorrange = limits,
              width = Relative(0.25),
@@ -68,7 +90,7 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
         )
     end
 
-    return fig, ax, title, coastlines_plot, cbar
+    return fig, ax, title, coastlines_plot, cbar, p_colormap, p_rgba, rgba_colors, earth_surface, colorbar_label
 end
 
 # Create main 3D globe figure
@@ -84,7 +106,7 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
     earth_img = FileIO.load(download("https://upload.wikimedia.org/wikipedia/commons/5/56/Blue_Marble_Next_Generation_%2B_topography_%2B_bathymetry.jpg"))
 
     # Add Earth image as base surface at z=0
-    surface!(ax,
+    earth_surface = surface!(ax,
              -180..180, -90..90,
              zeros(axes(rotr90(earth_img)));
              shading = NoShading,
@@ -92,8 +114,11 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
              backlight = 1.5f0,
             )
 
-    # Surface plot on globe at elevated z-level (above Earth surface)
-    p = surface!(ax, lon, lat, var_sliced,
+    # Create observable for RGBA colors (3D)
+    rgba_colors_3d = Observable(RGBAf.(1.0, 1.0, 1.0, ones(size(var_sliced[]))))
+
+    # Surface plot on globe with colormap (initially visible)
+    p_colormap = surface!(ax, lon, lat, var_sliced,
                  colorrange = limits,
                  lowclip = (:black, 0.8),
                  highclip = (:yellow, 0.9),
@@ -101,7 +126,16 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
                  colormap = :thermal,
                  transparency = true,
                  alpha = 0.9,
-                 zlevel = 20_000)
+                 zlevel = 20_000,
+                 visible = true)
+
+    # Surface plot on globe with RGBA colors (initially hidden)
+    p_rgba = surface!(ax, lon, lat, var_sliced,
+                 color = rgba_colors_3d,
+                 shading = NoShading,
+                 transparency = true,
+                 zlevel = 20_000,
+                 visible = false)
 
     # Add coastlines for 3D globe (black lines, will change with dark mode)
     coastlines_plot_3d = lines!(ax, GeoMakie.coastlines(), color = :black)
@@ -124,7 +158,7 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
     # Horizontal colorbar at bottom-right inside the map
     cbar = Colorbar(
              fig[1, 1],
-             p,
+             p_colormap,
              vertical = false,
              colorrange = limits,
              width = Relative(0.25),
@@ -148,14 +182,85 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
         )
     end
 
-    return fig, ax, title, coastlines_plot_3d, cbar
+    # Create starfield for space background (visible only in dark mode)
+    # Generate random star positions in 3D space around the globe
+    n_stars_background = 15000  # Base stars
+    n_stars_milkyway = 25000    # Extra stars for Milky Way band
+    Random.seed!(42)  # For reproducibility
+
+    # Background stars - uniformly distributed
+    star_radius = 1e8  # Far from Earth
+    star_theta_bg = 2π .* rand(n_stars_background)
+    star_phi_bg = acos.(2 .* rand(n_stars_background) .- 1)
+
+    # Convert to Cartesian coordinates
+    star_x_bg = star_radius .* sin.(star_phi_bg) .* cos.(star_theta_bg)
+    star_y_bg = star_radius .* sin.(star_phi_bg) .* sin.(star_theta_bg)
+    star_z_bg = star_radius .* cos.(star_phi_bg)
+
+    # Milky Way band - concentrated along a great circle
+    # Create a tilted band (like viewing the Milky Way from Earth)
+    star_theta_mw = 2π .* rand(n_stars_milkyway)
+    # Concentrate stars near the equatorial plane (narrow gaussian distribution)
+    star_phi_deviation = 0.15 .* randn(n_stars_milkyway)  # Gaussian around 0
+    star_phi_mw = π/2 .+ star_phi_deviation  # Concentrated near equator with tilt
+
+    # Convert Milky Way stars to Cartesian
+    star_x_mw = star_radius .* sin.(star_phi_mw) .* cos.(star_theta_mw)
+    star_y_mw = star_radius .* sin.(star_phi_mw) .* sin.(star_theta_mw)
+    star_z_mw = star_radius .* cos.(star_phi_mw)
+
+    # Apply rotation to tilt the Milky Way band (30 degrees)
+    tilt_angle = π/6  # 30 degrees
+    star_x_mw_rotated = star_x_mw .* cos(tilt_angle) .- star_z_mw .* sin(tilt_angle)
+    star_z_mw_rotated = star_x_mw .* sin(tilt_angle) .+ star_z_mw .* cos(tilt_angle)
+
+    # Combine all stars
+    star_x = vcat(star_x_bg, star_x_mw_rotated)
+    star_y = vcat(star_y_bg, star_y_mw)
+    star_z = vcat(star_z_bg, star_z_mw_rotated)
+    n_stars = n_stars_background + n_stars_milkyway
+
+    # Create different star types for variety
+    # Some very bright (pure white), some dimmer
+    # Milky Way stars are slightly dimmer on average
+    star_brightness = vcat(rand(n_stars_background), 0.7 .* rand(n_stars_milkyway))
+    star_colors = [RGBAf(1, 1, 1, b > 0.85 ? 1.0 : 0.3 + 0.5*b) for b in star_brightness]
+
+    # Slightly bigger stars
+    star_sizes = 1.0 .+ 2.0 .* rand(n_stars)
+
+    # Add main stars (small, no borders)
+    stars_main = scatter!(ax.scene, star_x, star_y, star_z,
+                    color = star_colors,
+                    markersize = star_sizes,
+                    strokewidth = 0,  # No borders
+                    space = :data,
+                    visible = false)
+
+    # Add halo effect for bright stars only
+    bright_indices = findall(b -> b > 0.85, star_brightness)
+    halo_colors = [RGBAf(1, 1, 1, 0.15) for _ in bright_indices]
+    halo_sizes = star_sizes[bright_indices] .* 3  # 3x larger for halo
+
+    stars_halo = scatter!(ax.scene, star_x[bright_indices], star_y[bright_indices], star_z[bright_indices],
+                    color = halo_colors,
+                    markersize = halo_sizes,
+                    strokewidth = 0,
+                    space = :data,
+                    visible = false)
+
+    # Return both star layers as a tuple
+    stars = (stars_main, stars_halo)
+
+    return fig, ax, title, coastlines_plot_3d, cbar, p_colormap, p_rgba, rgba_colors_3d, earth_surface, earth_img, colorbar_label, stars
 end
 
 # Create vertical profile figure
 function create_profile_figure(var, heights, profile, profile_limits, current_height,
                                profile_title, time_selected, bg_color, show_height)
-    # Scaled to 67% for better fit at 100% zoom
-    fig_profile = Figure(size = (400, 350), backgroundcolor = bg_color, figure_padding = 0)
+    # Increased size to take advantage of compact menu
+    fig_profile = Figure(size = (480, 420), backgroundcolor = bg_color, figure_padding = 0)
     profile_xlabel = Observable(string(ClimaAnalysis.short_name(var[]), " [", ClimaAnalysis.units(var[]), "]"))
 
     ax_profile = Axis(fig_profile[1, 1],
@@ -193,8 +298,8 @@ end
 
 # Create time series figure
 function create_timeseries_figure(var, dates_array, timeseries, timeseries_title, time_selected, bg_color)
-    # Scaled to 67% for better fit at 100% zoom
-    fig_timeseries = Figure(size = (400, 350), backgroundcolor = bg_color, figure_padding = 0)
+    # Increased size to take advantage of compact menu
+    fig_timeseries = Figure(size = (480, 420), backgroundcolor = bg_color, figure_padding = 0)
     timeseries_ylabel = Observable(string(ClimaAnalysis.short_name(var[]), " [", ClimaAnalysis.units(var[]), "]"))
 
     ax_timeseries = Axis(fig_timeseries[1, 1],

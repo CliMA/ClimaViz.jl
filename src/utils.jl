@@ -73,20 +73,40 @@ mutable struct AppState
     dark_mode::Observable
     fig_bg_color::Observable
     show_height::Observable
+    transparency_gradient::Observable
+    transparency_direction::Observable
+    transparency_color::Observable
 
     # Axes and visual elements
     ax::Any
+    ax_3d::Any
     ax_profile::Any
     ax_timeseries::Any
     profile_lines::Any
     profile_hlines::Any
     timeseries_lines::Any
     coastlines_plot::Any
+    coastlines_plot_3d::Any
     colorbar::Any
+    colorbar_3d::Any
+    colorbar_label::Observable
+    colorbar_label_3d::Observable
     profile_box::Any
+    surface_plot_colormap::Any
+    surface_plot_rgba::Any
+    surface_plot_3d_colormap::Any
+    surface_plot_3d_rgba::Any
+    rgba_colors::Observable
+    rgba_colors_3d::Observable
+    earth_surface::Any
+    earth_surface_3d::Any
+    earth_img::Any
+    lon::Vector{Float64}
+    lat::Vector{Float64}
 
     # Figures for background color updates
     fig::Any
+    fig_3d::Any
     fig_profile::Any
     fig_timeseries::Any
 
