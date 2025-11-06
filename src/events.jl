@@ -464,6 +464,10 @@ function setup_transparency_gradient_handler(state::AppState)
             delete!(state.colorbar)
             delete!(state.colorbar_3d)
 
+            # Hide coastlines in transparency gradient mode (both 2D and 3D)
+            state.coastlines_plot.visible = false
+            state.coastlines_plot_3d.visible = false
+
             # Show earth surfaces for background
             state.earth_surface.visible = true
             state.earth_surface_3d.visible = true
@@ -477,6 +481,10 @@ function setup_transparency_gradient_handler(state::AppState)
             state.surface_plot_rgba.visible = false
             state.surface_plot_3d_colormap.visible = true
             state.surface_plot_3d_rgba.visible = false
+
+            # Show coastlines in colormap mode (both 2D and 3D)
+            state.coastlines_plot.visible = true
+            state.coastlines_plot_3d.visible = true
 
             # Recreate colorbars when exiting transparency gradient mode
             state.colorbar = Colorbar(

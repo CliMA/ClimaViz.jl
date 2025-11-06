@@ -86,6 +86,7 @@ mutable struct AppState
     profile_hlines::Any
     timeseries_lines::Any
     coastlines_plot::Any
+    coastlines_plot_3d::Any
     colorbar::Any
     colorbar_3d::Any
     colorbar_label::Observable

@@ -239,7 +239,7 @@ function dashboard(path)
             dark_mode, Observable(:white),  # fig_bg_color (not used anymore but kept for compatibility)
             show_height,
             transparency_gradient, transparency_direction, transparency_color,
-            ax, ax_3d, ax_profile, ax_timeseries, profile_lines, profile_hlines, timeseries_lines, coastlines_plot, cbar, cbar_3d, colorbar_label, colorbar_label_3d, profile_box,
+            ax, ax_3d, ax_profile, ax_timeseries, profile_lines, profile_hlines, timeseries_lines, coastlines_plot, coastlines_plot_3d, cbar, cbar_3d, colorbar_label, colorbar_label_3d, profile_box,
             surface_plot_colormap, surface_plot_rgba, surface_plot_3d_colormap, surface_plot_3d_rgba,
             rgba_colors, rgba_colors_3d,
             earth_surface, earth_surface_3d, earth_img,
@@ -292,18 +292,24 @@ function dashboard(path)
             ax_profile.bottomspinevisible = has_height
         end
 
-        # Setup zoom for 3D globe when first displayed
-        zoomed_3d = Ref(false)
+        # Setup zoom for 3D globe - triggers every time 3D mode is activated
         on(globe_3d) do is_3d
-            if is_3d && !zoomed_3d[]
-                # Defer zoom slightly to ensure scene is rendered
-                sleep(0.1)
-                try
-                    zoom!(ax_3d.scene, 2.5)
-                    zoomed_3d[] = true
-                catch e
-                    println("Warning: Could not apply zoom to 3D globe: ", e)
+            if is_3d
+                println("3D mode activated, scheduling zoom...")
+                # Use a Timer to zoom after scene is rendered
+                # This runs asynchronously so it doesn't block
+                Timer(1.0) do timer
+                    try
+                        println("Applying zoom IN to 3D globe...")
+                        zoom!(ax_3d.scene, 0.05)  # Values < 1.0 zoom IN, > 1.0 zoom OUT
+                        println("Zoom applied successfully! Current eyeposition: $(ax_3d.scene.camera_controls.eyeposition[])")
+                    catch e
+                        println("Warning: Could not apply zoom to 3D globe: ", e)
+                        println("Stack trace: ", stacktrace())
+                    end
                 end
+            else
+                println("Switched back to 2D mode")
             end
         end
 
