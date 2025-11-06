@@ -70,12 +70,14 @@ mutable struct AppState
     time_value_text::Observable
     height_value_text::Observable
     speed_value_text::Observable
+    quantiles_value_text::Observable
     dark_mode::Observable
     fig_bg_color::Observable
     show_height::Observable
     transparency_gradient::Observable
     transparency_direction::Observable
     transparency_color::Observable
+    transparency_quantiles::Observable
 
     # Axes and visual elements
     ax::Any

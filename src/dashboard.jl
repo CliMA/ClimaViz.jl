@@ -149,6 +149,17 @@ function dashboard(path)
         transparency_gradient_checkbox = Bonito.Checkbox(false; style = checkbox_style)
         transparency_gradient = transparency_gradient_checkbox.value
 
+        # Slider for quantiles threshold (controls the quantile range)
+        # Range from 0.01 to 0.25 with 10 steps
+        # Value represents the lower quantile (upper is automatically 1 - value)
+        slider_style = Bonito.Styles(
+            "min-width" => "100px",
+            "width" => "100px"
+        )
+        transparency_quantiles_slider = Bonito.StylableSlider(range(0.01, 0.25, length=10); style = slider_style)
+        transparency_quantiles_slider.value[] = 0.05  # Default to current behavior
+        transparency_quantiles = transparency_quantiles_slider.value
+
         # Dropdown for normal/inverted transparency
         transparency_direction_options = ["normal", "inverted"]
         transparency_direction_menu = Bonito.Dropdown(transparency_direction_options; style = dropdown_style)
@@ -174,6 +185,9 @@ function dashboard(path)
 
         speed_value_text = Observable(string(round(speed_selected[], digits=2), " s"))
         speed_value_label = Bonito.DOM.h1(speed_value_text; style = value_style)
+
+        quantiles_value_text = Observable(string(round(Int, transparency_quantiles[] * 100), "%"))
+        quantiles_value_label = Bonito.DOM.h1(quantiles_value_text; style = value_style)
 
         # Create data observables
         var_sliced = Observable(var_slice(var[], time_selected[]; height_selected = height_selected[]))
@@ -235,10 +249,10 @@ function dashboard(path)
             heights_obs,
             timeseries, timeseries_title, timeseries_ylabel, current_time_index,
             time_selected, height_selected, speed_selected,
-            time_value_text, height_value_text, speed_value_text,
+            time_value_text, height_value_text, speed_value_text, quantiles_value_text,
             dark_mode, Observable(:white),  # fig_bg_color (not used anymore but kept for compatibility)
             show_height,
-            transparency_gradient, transparency_direction, transparency_color,
+            transparency_gradient, transparency_direction, transparency_color, transparency_quantiles,
             ax, ax_3d, ax_profile, ax_timeseries, profile_lines, profile_hlines, timeseries_lines, coastlines_plot, coastlines_plot_3d, cbar, cbar_3d, colorbar_label, colorbar_label_3d, profile_box,
             surface_plot_colormap, surface_plot_rgba, surface_plot_3d_colormap, surface_plot_3d_rgba,
             rgba_colors, rgba_colors_3d,
@@ -269,6 +283,7 @@ function dashboard(path)
         setup_time_handler(time_slider, state)
         setup_height_handler(height_slider, state)
         setup_speed_handler(speed_slider, state)
+        setup_quantiles_handler(transparency_quantiles_slider, state)
         setup_play_handler(play_button, time_slider, state)
         setup_transparency_gradient_handler(state)
         setup_dark_mode_handler(state, session)
@@ -335,7 +350,7 @@ function dashboard(path)
         return layout(var_menu, reduction_menu, period_menu, time_slider, height_slider, play_button, speed_slider,
                      fig, fig_3d, fig_profile, fig_timeseries, show_height, profile_lines, profile_hlines,
                      time_value_label, height_value_label, speed_value_label, dark_mode_checkbox, globe_3d_checkbox, globe_3d, dark_mode,
-                     transparency_gradient_checkbox, transparency_direction_menu, transparency_color_menu)
+                     transparency_gradient_checkbox, transparency_quantiles_slider, quantiles_value_label, transparency_direction_menu, transparency_color_menu)
     end
 
     IP = "127.0.0.1"

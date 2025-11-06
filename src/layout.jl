@@ -3,7 +3,7 @@ export layout
 function layout(var_menu, reduction_menu, period_menu, time_slider, height_slider, play_button, speed_slider,
                 fig, fig_3d, fig_profile, fig_timeseries, show_height, profile_lines, profile_hlines,
                 time_value_label, height_value_label, speed_value_label, dark_mode_checkbox, globe_3d_checkbox, globe_3d, dark_mode,
-                transparency_gradient_checkbox, transparency_direction_menu, transparency_color_menu)
+                transparency_gradient_checkbox, transparency_quantiles_slider, quantiles_value_label, transparency_direction_menu, transparency_color_menu)
     label_style = Bonito.Styles(
         "font-size" => "0.9rem",
         "font-weight" => "600",
@@ -61,7 +61,9 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
     transparency_gradient_label = Bonito.DOM.span("Transparency Gradient: "; style = label_style)
     transparency_gradient_row = Bonito.DOM.div(
         transparency_gradient_label,
-        transparency_gradient_checkbox;
+        transparency_gradient_checkbox,
+        transparency_quantiles_slider,
+        quantiles_value_label;
         style = checkbox_row_style
     )
 
