@@ -221,14 +221,14 @@ function dashboard(path)
         # Download earth image once and share between 2D and 3D figures
         earth_img = FileIO.load(download("https://upload.wikimedia.org/wikipedia/commons/5/56/Blue_Marble_Next_Generation_%2B_topography_%2B_bathymetry.jpg"))
 
-        # Create figures (with white background initially)
-        fig, ax, title, coastlines_plot, cbar, surface_plot_colormap, surface_plot_rgba, rgba_colors, earth_surface, colorbar_label = create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white, earth_img)
+        # Create figures (with black background since we start in dark mode)
+        fig, ax, title, coastlines_plot, cbar, surface_plot_colormap, surface_plot_rgba, rgba_colors, earth_surface, colorbar_label = create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :black, earth_img)
 
         # Create 3D globe figure
-        fig_3d, ax_3d, title_3d, coastlines_plot_3d, cbar_3d, surface_plot_3d_colormap, surface_plot_3d_rgba, rgba_colors_3d, earth_surface_3d, colorbar_label_3d, stars = create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white, earth_img)
+        fig_3d, ax_3d, title_3d, coastlines_plot_3d, cbar_3d, surface_plot_3d_colormap, surface_plot_3d_rgba, rgba_colors_3d, earth_surface_3d, colorbar_label_3d, stars = create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :black, earth_img)
 
         fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs, profile_box =
-            create_profile_figure(var, heights, profile, profile_limits, current_height, profile_title, time_selected, :white, show_height)
+            create_profile_figure(var, heights, profile, profile_limits, current_height, profile_title, time_selected, :black, show_height)
 
         # Set initial visibility of axis decorations based on whether variable has height
         initial_has_height = show_height[]
@@ -245,7 +245,7 @@ function dashboard(path)
         ax_profile.bottomspinevisible = initial_has_height
 
         fig_timeseries, ax_timeseries, timeseries_ylabel, current_time_index, n_ticks, timeseries_lines =
-            create_timeseries_figure(var, dates_array, timeseries, timeseries_title, time_selected, :white)
+            create_timeseries_figure(var, dates_array, timeseries, timeseries_title, time_selected, :black)
 
         # Create AppState to bundle all state
         state = AppState(
@@ -269,6 +269,19 @@ function dashboard(path)
             false,  # updating flag
             false   # paused flag
         )
+
+        # Initialize dark mode colors since we start in dark mode
+        ax.titlecolor = :white
+        ax_3d.titlecolor = :white
+        cbar.labelcolor = :white
+        cbar.ticklabelcolor = :white
+        cbar_3d.labelcolor = :white
+        cbar_3d.ticklabelcolor = :white
+        coastlines_plot.color = :white
+        coastlines_plot_3d.color = :white
+        # Show stars initially since we start in dark mode
+        stars[1].visible = true
+        stars[2].visible = true
 
         # Update main title using state
         if has_height(var[])
