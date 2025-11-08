@@ -102,7 +102,6 @@ mutable struct AppState
     rgba_colors_3d::Observable
     earth_surface::Any
     earth_surface_3d::Any
-    earth_img::Any
     lon::Vector{Float64}
     lat::Vector{Float64}
 
@@ -117,6 +116,9 @@ mutable struct AppState
 
     # Flag to prevent recursive updates
     updating::Bool
+    
+    # Flag to pause animation
+    paused::Bool
 end
 
 # Check if variable has height dimension

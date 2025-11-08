@@ -375,7 +375,14 @@ function setup_play_handler(play_button, time_slider, state::AppState)
     n_times = length(state.times)
     on(play_button) do _
         println("Playing animation")
+        state.paused = false  # Reset pause flag when starting animation
         for t in 1:n_times
+            # Check if animation was paused
+            if state.paused
+                println("Animation paused")
+                break
+            end
+            
             state.var_sliced[] = var_slice(state.var[], t; height_selected = state.height_selected[])
 
             # Update title
@@ -398,6 +405,14 @@ function setup_play_handler(play_button, time_slider, state::AppState)
 
             sleep(state.speed_selected[])
         end
+    end
+end
+
+# Handle pause button
+function setup_pause_handler(pause_button, state::AppState)
+    on(pause_button) do _
+        println("Pausing animation")
+        state.paused = true
     end
 end
 

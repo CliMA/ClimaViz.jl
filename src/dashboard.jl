@@ -61,7 +61,7 @@ function dashboard(path)
             "margin" => "0",
             "transform" => "scale(1.1)"
         )
-        dark_mode_checkbox = Bonito.Checkbox(false; style = checkbox_style)
+        dark_mode_checkbox = Bonito.Checkbox(true; style = checkbox_style)  # Start in dark mode by default
         dark_mode = dark_mode_checkbox.value
 
         # Create UI controls
@@ -128,18 +128,21 @@ function dashboard(path)
         speed_slider.value[] = 0.1
         speed_selected = speed_slider.value
 
-        # Create button with improved styling
+        # Create button with improved styling - square buttons
         button_style = Bonito.Styles(
-            "padding" => "6px 14px",
+            "padding" => "8px 16px",
             "font-size" => "0.9rem",
             "font-weight" => "bold",
             "border-radius" => "4px",
             "border" => "2px solid #888888",
             "background-color" => "#888888",
             "color" => "white",
-            "cursor" => "pointer"
+            "cursor" => "pointer",
+            "width" => "70px",
+            "height" => "38px"
         )
         play_button = Bonito.Button("Play"; style = button_style)
+        pause_button = Bonito.Button("Pause"; style = button_style)
 
         # Create 3D globe checkbox with improved styling
         globe_3d_checkbox = Bonito.Checkbox(false; style = checkbox_style)
@@ -215,11 +218,14 @@ function dashboard(path)
         profile_title = Observable(profile_title_string(var[], dates_array, time_selected[], lon_profile[], lat_profile[]))
         timeseries_title = Observable(timeseries_title_string(var[], heights, height_selected[], lon_profile[], lat_profile[]))
 
+        # Download earth image once and share between 2D and 3D figures
+        earth_img = FileIO.load(download("https://upload.wikimedia.org/wikipedia/commons/5/56/Blue_Marble_Next_Generation_%2B_topography_%2B_bathymetry.jpg"))
+
         # Create figures (with white background initially)
-        fig, ax, title, coastlines_plot, cbar, surface_plot_colormap, surface_plot_rgba, rgba_colors, earth_surface, colorbar_label = create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
+        fig, ax, title, coastlines_plot, cbar, surface_plot_colormap, surface_plot_rgba, rgba_colors, earth_surface, colorbar_label = create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white, earth_img)
 
         # Create 3D globe figure
-        fig_3d, ax_3d, title_3d, coastlines_plot_3d, cbar_3d, surface_plot_3d_colormap, surface_plot_3d_rgba, rgba_colors_3d, earth_surface_3d, earth_img, colorbar_label_3d, stars = create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
+        fig_3d, ax_3d, title_3d, coastlines_plot_3d, cbar_3d, surface_plot_3d_colormap, surface_plot_3d_rgba, rgba_colors_3d, earth_surface_3d, colorbar_label_3d, stars = create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white, earth_img)
 
         fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs, profile_box =
             create_profile_figure(var, heights, profile, profile_limits, current_height, profile_title, time_selected, :white, show_height)
@@ -256,11 +262,12 @@ function dashboard(path)
             ax, ax_3d, ax_profile, ax_timeseries, profile_lines, profile_hlines, timeseries_lines, coastlines_plot, coastlines_plot_3d, cbar, cbar_3d, colorbar_label, colorbar_label_3d, profile_box,
             surface_plot_colormap, surface_plot_rgba, surface_plot_3d_colormap, surface_plot_3d_rgba,
             rgba_colors, rgba_colors_3d,
-            earth_surface, earth_surface_3d, earth_img,
+            earth_surface, earth_surface_3d,
             lon, lat,
             fig, fig_3d, fig_profile, fig_timeseries,
             n_ticks,
-            false  # updating flag
+            false,  # updating flag
+            false   # paused flag
         )
 
         # Update main title using state
@@ -285,6 +292,7 @@ function dashboard(path)
         setup_speed_handler(speed_slider, state)
         setup_quantiles_handler(transparency_quantiles_slider, state)
         setup_play_handler(play_button, time_slider, state)
+        setup_pause_handler(pause_button, state)
         setup_transparency_gradient_handler(state)
         setup_dark_mode_handler(state, session)
 
@@ -347,7 +355,7 @@ function dashboard(path)
         end
 
         # Return layout
-        return layout(var_menu, reduction_menu, period_menu, time_slider, height_slider, play_button, speed_slider,
+        return layout(var_menu, reduction_menu, period_menu, time_slider, height_slider, play_button, pause_button, speed_slider,
                      fig, fig_3d, fig_profile, fig_timeseries, show_height, profile_lines, profile_hlines,
                      time_value_label, height_value_label, speed_value_label, dark_mode_checkbox, globe_3d_checkbox, globe_3d, dark_mode,
                      transparency_gradient_checkbox, transparency_quantiles_slider, quantiles_value_label, transparency_direction_menu, transparency_color_menu)

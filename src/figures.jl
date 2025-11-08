@@ -1,7 +1,7 @@
 export create_main_figure, create_main_figure_3d, create_profile_figure, create_timeseries_figure
 
 # Create main map figure with surface plot
-function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, bg_color)
+function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, bg_color, earth_img)
     # Large figure that fills screen naturally (minimal CSS scaling)
     fig = Figure(size = (2150, 1200), backgroundcolor = bg_color, figure_padding = 0)
     title = Observable("title")
@@ -15,8 +15,7 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
     # Deactivate zoom via scroll
     deactivate_interaction!(ax, :scrollzoom)
 
-    # Load Earth image for optional background
-    earth_img = FileIO.load(download("https://upload.wikimedia.org/wikipedia/commons/5/56/Blue_Marble_Next_Generation_%2B_topography_%2B_bathymetry.jpg"))
+    # Use provided Earth image for optional background
 
     # Add Earth image as base surface (initially hidden)
     earth_surface = surface!(ax,
@@ -94,7 +93,7 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
 end
 
 # Create main 3D globe figure
-function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, bg_color)
+function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, bg_color, earth_img)
     # Large figure that fills screen naturally
     fig = Figure(size = (2150, 1200), backgroundcolor = bg_color, figure_padding = 0)
     title = Observable("title")
@@ -102,8 +101,7 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
     # Use GlobeAxis for 3D globe with title
     ax = GeoMakie.GlobeAxis(fig[1, 1]; show_axis = false, title = title, titlesize = 16.0f0, titlevisible = true)
 
-    # Load Earth image for background
-    earth_img = FileIO.load(download("https://upload.wikimedia.org/wikipedia/commons/5/56/Blue_Marble_Next_Generation_%2B_topography_%2B_bathymetry.jpg"))
+    # Use provided Earth image for background
 
     # Add Earth image as base surface at z=0
     earth_surface = surface!(ax,
@@ -253,7 +251,7 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
     # Return both star layers as a tuple
     stars = (stars_main, stars_halo)
 
-    return fig, ax, title, coastlines_plot_3d, cbar, p_colormap, p_rgba, rgba_colors_3d, earth_surface, earth_img, colorbar_label, stars
+    return fig, ax, title, coastlines_plot_3d, cbar, p_colormap, p_rgba, rgba_colors_3d, earth_surface, colorbar_label, stars
 end
 
 # Create vertical profile figure

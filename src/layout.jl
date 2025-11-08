@@ -1,6 +1,6 @@
 export layout
 
-function layout(var_menu, reduction_menu, period_menu, time_slider, height_slider, play_button, speed_slider,
+function layout(var_menu, reduction_menu, period_menu, time_slider, height_slider, play_button, pause_button, speed_slider,
                 fig, fig_3d, fig_profile, fig_timeseries, show_height, profile_lines, profile_hlines,
                 time_value_label, height_value_label, speed_value_label, dark_mode_checkbox, globe_3d_checkbox, globe_3d, dark_mode,
                 transparency_gradient_checkbox, transparency_quantiles_slider, quantiles_value_label, transparency_direction_menu, transparency_color_menu)
@@ -27,9 +27,10 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
         height_value_label;
     )
 
-    # Animation control row
+    # Animation control row with both play and pause buttons
     animation_row = Bonito.Row(
         play_button,
+        pause_button,
         Bonito.DOM.h1("Speed: "; style = label_style),
         speed_slider,
         speed_value_label;
@@ -75,6 +76,16 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
         "background-color" => "#e0e0e0"  # Medium grey in white mode
     )
 
+    # Create title for the menu
+    menu_title_style = Bonito.Styles(
+        "font-size" => "1.4rem",
+        "font-weight" => "bold",
+        "text-align" => "center",
+        "margin-bottom" => "8px",
+        "color" => "#333333"
+    )
+    menu_title = Bonito.DOM.h1("CliMA Dashboard Controls"; style = menu_title_style)
+
     # Left column: dark mode, 3D globe, variable, reduction, period
     left_column = Bonito.Col(
         dark_mode_row,
@@ -116,11 +127,14 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
     )
 
     menu_card = Bonito.Card(
-        Bonito.Grid(
-            left_column,
-            right_column;
-            columns = "1fr 1fr",
-            gap = "10px"
+        Bonito.Col(
+            menu_title,
+            Bonito.Grid(
+                left_column,
+                right_column;
+                columns = "1fr 1fr",
+                gap = "10px"
+            );
         );
         shadow_size = "0",
         style = menu_card_style,
