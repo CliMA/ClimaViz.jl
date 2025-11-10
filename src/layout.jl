@@ -2,21 +2,22 @@ export layout
 
 function layout(var_menu, reduction_menu, period_menu, time_slider, height_slider, play_button, speed_slider,
                 fig, fig_3d, fig_profile, fig_timeseries, show_height, profile_lines, profile_hlines,
-                time_value_label, height_value_label, speed_value_label, dark_mode_checkbox, globe_3d_checkbox, globe_3d, dark_mode,
-                transparency_gradient_checkbox, transparency_quantiles_slider, quantiles_value_label, transparency_direction_menu, transparency_color_menu)
+                time_value_label, height_value_label, speed_value_label, dark_mode_checkbox, dark_mode,
+                transparency_quantiles_slider, quantiles_value_label, transparency_direction_menu, transparency_color_menu)
     label_style = Bonito.Styles(
         "font-size" => "0.9rem",
         "font-weight" => "600",
         "margin" => "0",
         "display" => "flex",
         "align-items" => "center",
-        "gap" => "6px"
+        "gap" => "4px",
+        "color" => "white"  # Start with white for dark mode default
     )
     header_style = Bonito.Styles(
-        "font-size" => "1.3rem",
+        "font-size" => "1.1rem",
         "text-align" => "center",
         "font-weight" => "bold",
-        "margin-bottom" => "0.5rem"
+        "margin-bottom" => "0.3rem"
     )
 
     # Create height row with value display
@@ -40,7 +41,8 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
         "display" => "flex",
         "align-items" => "center",
         "gap" => "8px",
-        "padding" => "4px 0"
+        "padding" => "4px 0",
+        "color" => "white"  # Start with white for dark mode default
     )
     dark_mode_label = Bonito.DOM.span("Dark Mode: "; style = label_style)
     dark_mode_row = Bonito.DOM.div(
@@ -49,36 +51,25 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
         style = checkbox_row_style
     )
 
-    # 3D globe row with improved layout
-    globe_3d_label = Bonito.DOM.span("3D Globe: "; style = label_style)
-    globe_3d_row = Bonito.DOM.div(
-        globe_3d_label,
-        globe_3d_checkbox;
-        style = checkbox_row_style
-    )
-
-    # Transparency gradient row with improved layout
-    transparency_gradient_label = Bonito.DOM.span("Transparency Gradient: "; style = label_style)
-    transparency_gradient_row = Bonito.DOM.div(
-        transparency_gradient_label,
-        transparency_gradient_checkbox,
+    # 3D transparency controls row (3D always uses transparent gradient mode)
+    gradient_threshold_row = Bonito.DOM.div(
+        Bonito.DOM.span("3D Gradient Threshold: "; style = label_style),
         transparency_quantiles_slider,
         quantiles_value_label;
         style = checkbox_row_style
     )
 
-    # Menu card with improved styling and two-column layout
-    # Make it grey in white mode for better visual separation
+    # Menu card with compact styling
+    # Start with dark mode colors (since dark mode is default)
     menu_card_style = Bonito.Styles(
-        "padding" => "12px",
-        "border-radius" => "8px",
-        "background-color" => "#e0e0e0"  # Medium grey in white mode
+        "padding" => "8px",
+        "border-radius" => "6px",
+        "background-color" => "#1a1a1a"  # Dark grey for dark mode (default)
     )
 
-    # Left column: dark mode, 3D globe, variable, reduction, period
-    left_column = Bonito.Col(
+    # Single column menu (narrower, taller)
+    menu_column = Bonito.Col(
         dark_mode_row,
-        globe_3d_row,
         Bonito.Row(
             Bonito.DOM.h1("Variable: "; style = label_style),
             var_menu;
@@ -90,19 +81,14 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
         Bonito.Row(
             Bonito.DOM.h1("Period: "; style = label_style),
             period_menu;
-        );
-        height = "auto"
-    )
-
-    # Right column: transparency gradient, direction, color, time, height, play
-    right_column = Bonito.Col(
-        transparency_gradient_row,
+        ),
+        gradient_threshold_row,
         Bonito.Row(
-            Bonito.DOM.h1("Direction: "; style = label_style),
+            Bonito.DOM.h1("3D Direction: "; style = label_style),
             transparency_direction_menu;
         ),
         Bonito.Row(
-            Bonito.DOM.h1("Color: "; style = label_style),
+            Bonito.DOM.h1("3D Color: "; style = label_style),
             transparency_color_menu;
         ),
         Bonito.Row(
@@ -116,57 +102,38 @@ function layout(var_menu, reduction_menu, period_menu, time_slider, height_slide
     )
 
     menu_card = Bonito.Card(
-        Bonito.Grid(
-            left_column,
-            right_column;
-            columns = "1fr 1fr",
-            gap = "10px"
-        );
+        menu_column;
         shadow_size = "0",
         style = menu_card_style,
         class = "menu-card"
     )
 
-    # Timeseries card with centering
-    card_center_style = Bonito.Styles(
-        "display" => "flex",
-        "justify-content" => "center",
-        "width" => "100%"
-    )
-    timeseries_card = Bonito.DOM.div(
-        Bonito.Card(fig_timeseries; shadow_size = "0");
-        style = card_center_style
-    )
-
-    # Profile card - now always shows the profile figure
-    # When there's no height dimension, the Makie.Box inside covers it
-    profile_card = Bonito.DOM.div(
-        Bonito.Card(fig_profile; shadow_size = "0");
-        style = card_center_style
-    )
-
-    # Left sidebar with all controls stacked vertically
-    left_sidebar = Bonito.Col(
-        menu_card,
-        timeseries_card,
-        profile_card;
+    # Column 1: Menu card only
+    menu_column_layout = Bonito.Col(
+        menu_card;
         height = "100vh"
     )
 
-    # Map cards - Alternative approach: simpler visibility toggle
-    # Keep both figures in layout, toggle which one is displayed
-    # This approach uses conditional rendering based on observable
-    map_card = Observable(globe_3d[] ? Bonito.Card(fig_3d; shadow_size = "0") : Bonito.Card(fig; shadow_size = "0"))
-    
-    on(globe_3d) do is_3d
-        map_card[] = is_3d ? Bonito.Card(fig_3d; shadow_size = "0") : Bonito.Card(fig; shadow_size = "0")
-    end
+    # Column 2: 2D surface (top) and 3D surface (bottom) stacked vertically
+    surfaces_column = Bonito.Col(
+        Bonito.Card(fig; shadow_size = "0"),
+        Bonito.Card(fig_3d; shadow_size = "0");
+        height = "100vh"
+    )
 
-    # Main layout: sidebar on left, map on right with minimal gap
+    # Column 3: Timeseries (top) and Profile (bottom) stacked vertically
+    charts_column = Bonito.Col(
+        Bonito.Card(fig_timeseries; shadow_size = "0"),
+        Bonito.Card(fig_profile; shadow_size = "0");
+        height = "100vh"
+    )
+
+    # Main layout: 3 columns tightly packed (no flexible spacing)
     Bonito.Grid(
-        left_sidebar,
-        map_card;
-        columns = "auto 1fr",
+        menu_column_layout,
+        surfaces_column,
+        charts_column;
+        columns = "400px 1100px 800px",
         gap = "5px"
     )
 end

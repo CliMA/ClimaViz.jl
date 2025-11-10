@@ -52,7 +52,7 @@ function dashboard(path)
         simdir = ClimaAnalysis.SimDir(path)
         vars = collect(keys(simdir.vars))
 
-        # Create dark mode checkbox first so we can use it for styling
+        # Create dark mode checkbox first so we can use it for styling (default to dark mode)
         checkbox_style = Bonito.Styles(
             "width" => "18px",
             "height" => "18px",
@@ -61,18 +61,19 @@ function dashboard(path)
             "margin" => "0",
             "transform" => "scale(1.1)"
         )
-        dark_mode_checkbox = Bonito.Checkbox(false; style = checkbox_style)
+        dark_mode_checkbox = Bonito.Checkbox(true; style = checkbox_style)  # Start in dark mode
         dark_mode = dark_mode_checkbox.value
 
-        # Create UI controls
+        # Create UI controls (wider menu with bigger fonts)
         var_menu_style = map(dark_mode) do is_dark
             Bonito.Styles(
-                "font-size" => "0.85rem",
+                "font-size" => "0.95rem",
                 "font-weight" => "bold",
-                "padding" => "6px 10px",
+                "padding" => "6px 8px",
                 "border-radius" => "4px",
                 "cursor" => "pointer",
-                "min-width" => "180px",
+                "min-width" => "80px",
+                "max-width" => "180px",
                 "color" => "black"
             )
         end
@@ -86,11 +87,12 @@ function dashboard(path)
         initial_reduction = first(available_reductions)
 
         dropdown_style = Bonito.Styles(
-            "font-size" => "0.85rem",
-            "padding" => "6px 10px",
+            "font-size" => "0.95rem",
+            "padding" => "6px 8px",
             "border-radius" => "4px",
             "cursor" => "pointer",
-            "min-width" => "180px"
+            "min-width" => "80px",
+            "max-width" => "180px"
         )
 
         reduction_menu = Bonito.Dropdown(available_reductions; style = dropdown_style)
@@ -128,33 +130,33 @@ function dashboard(path)
         speed_slider.value[] = 0.1
         speed_selected = speed_slider.value
 
-        # Create button with improved styling
+        # Create square pause/play toggle button with symbols
         button_style = Bonito.Styles(
-            "padding" => "6px 14px",
-            "font-size" => "0.9rem",
+            "padding" => "8px",
+            "font-size" => "1.2rem",
             "font-weight" => "bold",
             "border-radius" => "4px",
             "border" => "2px solid #888888",
             "background-color" => "#888888",
             "color" => "white",
-            "cursor" => "pointer"
+            "cursor" => "pointer",
+            "width" => "40px",
+            "height" => "40px",
+            "display" => "flex",
+            "align-items" => "center",
+            "justify-content" => "center"
         )
-        play_button = Bonito.Button("Play"; style = button_style)
+        is_playing = Observable(false)
+        button_label = Observable("▶")
+        play_button = Bonito.Button(button_label; style = button_style)
 
-        # Create 3D globe checkbox with improved styling
-        globe_3d_checkbox = Bonito.Checkbox(false; style = checkbox_style)
-        globe_3d = globe_3d_checkbox.value
-
-        # Create transparency gradient checkbox and controls
-        transparency_gradient_checkbox = Bonito.Checkbox(false; style = checkbox_style)
-        transparency_gradient = transparency_gradient_checkbox.value
-
+        # Transparency gradient controls for 3D (3D always uses transparent gradient mode)
         # Slider for quantiles threshold (controls the quantile range)
         # Range from 0.01 to 0.25 with 10 steps
         # Value represents the lower quantile (upper is automatically 1 - value)
         slider_style = Bonito.Styles(
-            "min-width" => "100px",
-            "width" => "100px"
+            "min-width" => "30px",
+            "width" => "80px"
         )
         transparency_quantiles_slider = Bonito.StylableSlider(range(0.01, 0.25, length=10); style = slider_style)
         transparency_quantiles_slider.value[] = 0.05  # Default to current behavior
@@ -172,11 +174,14 @@ function dashboard(path)
         transparency_color_menu.value[] = "white"
         transparency_color = transparency_color_menu.value
 
+        # Create fixed observable for transparency gradient (always true for 3D, always false for 2D)
+        transparency_gradient = Observable(true)
+
         # Create observable for showing height dimension
         show_height = Observable(has_height(var[]))
 
-        # Create value labels
-        value_style = Bonito.Styles("font-size" => "0.9rem")
+        # Create value labels (white text for dark mode default)
+        value_style = Bonito.Styles("font-size" => "0.9rem", "color" => "white")
         time_value_text = Observable(Dates.format(dates_array[time_selected[]], "u yyyy"))
         time_value_label = Bonito.DOM.h1(time_value_text; style = value_style)
 
@@ -215,14 +220,17 @@ function dashboard(path)
         profile_title = Observable(profile_title_string(var[], dates_array, time_selected[], lon_profile[], lat_profile[]))
         timeseries_title = Observable(timeseries_title_string(var[], heights, height_selected[], lon_profile[], lat_profile[]))
 
-        # Create figures (with white background initially)
-        fig, ax, title, coastlines_plot, cbar, surface_plot_colormap, surface_plot_rgba, rgba_colors, earth_surface, colorbar_label = create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
+        # Download Earth image once for both 2D and 3D figures (1024px for lower memory usage)
+        earth_img = FileIO.load(download("https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Blue_Marble_Next_Generation_%2B_topography_%2B_bathymetry.jpg/1024px-Blue_Marble_Next_Generation_%2B_topography_%2B_bathymetry.jpg"))
+
+        # Create figures (with black background for dark mode by default)
+        fig, ax, title, coastlines_plot, cbar, surface_plot_colormap, surface_plot_rgba, rgba_colors, earth_surface, colorbar_label = create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :black, earth_img)
 
         # Create 3D globe figure
-        fig_3d, ax_3d, title_3d, coastlines_plot_3d, cbar_3d, surface_plot_3d_colormap, surface_plot_3d_rgba, rgba_colors_3d, earth_surface_3d, earth_img, colorbar_label_3d, stars = create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :white)
+        fig_3d, ax_3d, title_3d, coastlines_plot_3d, cbar_3d, surface_plot_3d_colormap, surface_plot_3d_rgba, rgba_colors_3d, earth_surface_3d, colorbar_label_3d, stars = create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :black, earth_img)
 
         fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs, profile_box =
-            create_profile_figure(var, heights, profile, profile_limits, current_height, profile_title, time_selected, :white, show_height)
+            create_profile_figure(var, heights, profile, profile_limits, current_height, profile_title, time_selected, :black, show_height)
 
         # Set initial visibility of axis decorations based on whether variable has height
         initial_has_height = show_height[]
@@ -239,7 +247,7 @@ function dashboard(path)
         ax_profile.bottomspinevisible = initial_has_height
 
         fig_timeseries, ax_timeseries, timeseries_ylabel, current_time_index, n_ticks, timeseries_lines =
-            create_timeseries_figure(var, dates_array, timeseries, timeseries_title, time_selected, :white)
+            create_timeseries_figure(var, dates_array, timeseries, timeseries_title, time_selected, :black)
 
         # Create AppState to bundle all state
         state = AppState(
@@ -270,11 +278,6 @@ function dashboard(path)
             update_title(state, time_selected[])
         end
 
-        # Synchronize 3D title with 2D title
-        on(title) do t
-            title_3d[] = t
-        end
-
         # Set up all event handlers - they now access heights_obs and profile_combined from state
         setup_mouse_click_handler(fig, state)
         setup_variable_handler(var_menu, reduction_menu, period_menu, height_slider, state)
@@ -284,9 +287,19 @@ function dashboard(path)
         setup_height_handler(height_slider, state)
         setup_speed_handler(speed_slider, state)
         setup_quantiles_handler(transparency_quantiles_slider, state)
-        setup_play_handler(play_button, time_slider, state)
+        setup_play_handler(play_button, time_slider, state, is_playing, button_label)
         setup_transparency_gradient_handler(state)
         setup_dark_mode_handler(state, session)
+
+        # Trigger dark mode handler to apply initial dark mode styles
+        notify(dark_mode)
+
+        # Delete 3D colorbar since 3D always uses transparent gradient mode (no colorbar needed)
+        delete!(cbar_3d)
+
+        # Initialize 3D RGBA colors (3D always uses transparent gradient mode)
+        # Trigger initial computation by notifying var_sliced
+        notify(state.var_sliced)
 
         # Toggle profile_box visibility and axis decorations when show_height changes
         # The box is visible when there's no height dimension (covers the profile)
@@ -307,26 +320,41 @@ function dashboard(path)
             ax_profile.bottomspinevisible = has_height
         end
 
-        # Setup zoom for 3D globe - triggers every time 3D mode is activated
-        on(globe_3d) do is_3d
-            if is_3d
-                println("3D mode activated, scheduling zoom...")
-                # Use a Timer to zoom after scene is rendered
-                # This runs asynchronously so it doesn't block
-                Timer(1.0) do timer
-                    try
-                        println("Applying zoom IN to 3D globe...")
-                        zoom!(ax_3d.scene, 0.05)  # Values < 1.0 zoom IN, > 1.0 zoom OUT
-                        println("Zoom applied successfully! Current eyeposition: $(ax_3d.scene.camera_controls.eyeposition[])")
-                    catch e
-                        println("Warning: Could not apply zoom to 3D globe: ", e)
-                        println("Stack trace: ", stacktrace())
-                    end
-                end
-            else
-                println("Switched back to 2D mode")
+        # Setup initial zoom for 3D globe (since it's always visible now)
+        # Use a Timer to zoom after scene is rendered
+        Timer(1.0) do timer
+            try
+                println("Applying initial zoom to 3D globe...")
+                zoom!(ax_3d.scene, 0.04)  # Values < 1.0 zoom IN, > 1.0 zoom OUT
+                println("Zoom applied successfully!")
+            catch e
+                println("Warning: Could not apply zoom to 3D globe: ", e)
             end
         end
+
+        # Set initial colors for dark mode (since we start in dark mode)
+        ax.titlecolor = :white
+        coastlines_plot.color = :white
+        cbar.labelcolor = :white
+        cbar.ticklabelcolor = :white
+        ax_profile.backgroundcolor = :black
+        ax_profile.titlecolor = :white
+        ax_profile.xlabelcolor = :white
+        ax_profile.ylabelcolor = :white
+        ax_profile.xticklabelcolor = :white
+        ax_profile.yticklabelcolor = :white
+        profile_lines.color = :white
+        profile_box.color = :black
+        ax_timeseries.backgroundcolor = :black
+        ax_timeseries.titlecolor = :white
+        ax_timeseries.xlabelcolor = :white
+        ax_timeseries.ylabelcolor = :white
+        ax_timeseries.xticklabelcolor = :white
+        ax_timeseries.yticklabelcolor = :white
+        timeseries_lines.color = :white
+        # Show stars initially (dark mode default)
+        stars[1].visible = true
+        stars[2].visible = true
 
         # Also update 3D figure background when dark mode changes
         on(dark_mode) do is_dark
@@ -335,9 +363,6 @@ function dashboard(path)
             line_color = is_dark ? :white : :black
             fig_3d.scene.backgroundcolor[] = bg_rgba
             ax_3d.titlecolor = text_color
-            # Update 3D colorbar text colors
-            cbar_3d.labelcolor = text_color
-            cbar_3d.ticklabelcolor = text_color
             # Update 3D coastlines color
             coastlines_plot_3d.color = line_color
             # Toggle stars visibility - show in dark mode only
@@ -349,12 +374,12 @@ function dashboard(path)
         # Return layout
         return layout(var_menu, reduction_menu, period_menu, time_slider, height_slider, play_button, speed_slider,
                      fig, fig_3d, fig_profile, fig_timeseries, show_height, profile_lines, profile_hlines,
-                     time_value_label, height_value_label, speed_value_label, dark_mode_checkbox, globe_3d_checkbox, globe_3d, dark_mode,
-                     transparency_gradient_checkbox, transparency_quantiles_slider, quantiles_value_label, transparency_direction_menu, transparency_color_menu)
+                     time_value_label, height_value_label, speed_value_label, dark_mode_checkbox, dark_mode,
+                     transparency_quantiles_slider, quantiles_value_label, transparency_direction_menu, transparency_color_menu)
     end
 
     IP = "127.0.0.1"
-    port = 8080
+    port = 8081
     global server = Bonito.Server(IP, port; proxy_url = "http://localhost:$port")
     Bonito.route!(server, "/" => app)
     print_startup_message(port)
