@@ -1,12 +1,12 @@
 export create_main_figure, create_main_figure_3d, create_profile_figure, create_timeseries_figure
 
 # Create main map figure with surface plot
-function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, bg_color)
-    # Large figure that fills screen naturally (minimal CSS scaling)
-    fig = Figure(size = (2150, 1200), backgroundcolor = bg_color, figure_padding = 0)
+function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, bg_color, earth_img)
+    # Reduced size (half of original) so 2D and 3D can stack and both fit on screen
+    fig = Figure(size = (1075, 600), backgroundcolor = bg_color, figure_padding = 0)
     title = Observable("title")
 
-    # Equirectangular projection
+    # Equirectangular projection with title
     ax = GeoAxis(fig[1, 1], title = title, titlesize = 16.0f0, dest = "+proj=eqc")
 
     # Hide axis decorations for cleaner look
@@ -14,9 +14,6 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
 
     # Deactivate zoom via scroll
     deactivate_interaction!(ax, :scrollzoom)
-
-    # Load Earth image for optional background
-    earth_img = FileIO.load(download("https://upload.wikimedia.org/wikipedia/commons/5/56/Blue_Marble_Next_Generation_%2B_topography_%2B_bathymetry.jpg"))
 
     # Add Earth image as base surface (initially hidden)
     earth_surface = surface!(ax,
@@ -29,7 +26,7 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
     # Create observable for RGBA colors
     rgba_colors = Observable(RGBAf.(1.0, 1.0, 1.0, ones(size(var_sliced[]))))
 
-    # Surface plot with colormap (initially visible)
+    # Surface plot with colormap (2D always uses colormap mode)
     p_colormap = surface!(ax, lon, lat, var_sliced,
                  colorrange = limits,
                  lowclip = (:black, 0.8),
@@ -40,7 +37,7 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
                  alpha = 0.9,
                  visible = true)
 
-    # Surface plot with RGBA colors (initially hidden)
+    # Surface plot with RGBA colors (2D never uses this)
     p_rgba = surface!(ax, lon, lat, var_sliced,
                  color = rgba_colors,
                  shading = NoShading,
@@ -94,30 +91,29 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
 end
 
 # Create main 3D globe figure
-function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, bg_color)
-    # Large figure that fills screen naturally
-    fig = Figure(size = (2150, 1200), backgroundcolor = bg_color, figure_padding = 0)
+function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, bg_color, earth_img)
+    # Reduced height by 10% from 600 to 540 for better layout fit
+    # Reduced pixel density (px_per_unit=0.5) for faster rendering
+    fig = Figure(size = (1075, 540), backgroundcolor = bg_color, figure_padding = 0, px_per_unit = 0.5)
     title = Observable("title")
 
-    # Use GlobeAxis for 3D globe with title
-    ax = GeoMakie.GlobeAxis(fig[1, 1]; show_axis = false, title = title, titlesize = 16.0f0, titlevisible = true)
+    # Use GlobeAxis for 3D globe (title now shown in separate card)
+    ax = GeoMakie.GlobeAxis(fig[1, 1]; show_axis = false)
 
-    # Load Earth image for background
-    earth_img = FileIO.load(download("https://upload.wikimedia.org/wikipedia/commons/5/56/Blue_Marble_Next_Generation_%2B_topography_%2B_bathymetry.jpg"))
-
-    # Add Earth image as base surface at z=0
+    # Add Earth image as base surface at z=0 (3D always shows Earth in transparent gradient mode)
     earth_surface = surface!(ax,
              -180..180, -90..90,
              zeros(axes(rotr90(earth_img)));
              shading = NoShading,
              color = rotr90(earth_img),
              backlight = 1.5f0,
+             visible = true
             )
 
     # Create observable for RGBA colors (3D)
     rgba_colors_3d = Observable(RGBAf.(1.0, 1.0, 1.0, ones(size(var_sliced[]))))
 
-    # Surface plot on globe with colormap (initially visible)
+    # Surface plot on globe with colormap (3D never uses this)
     p_colormap = surface!(ax, lon, lat, var_sliced,
                  colorrange = limits,
                  lowclip = (:black, 0.8),
@@ -127,18 +123,18 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
                  transparency = true,
                  alpha = 0.9,
                  zlevel = 20_000,
-                 visible = true)
+                 visible = false)
 
-    # Surface plot on globe with RGBA colors (initially hidden)
+    # Surface plot on globe with RGBA colors (3D always uses transparent gradient)
     p_rgba = surface!(ax, lon, lat, var_sliced,
                  color = rgba_colors_3d,
                  shading = NoShading,
                  transparency = true,
                  zlevel = 20_000,
-                 visible = false)
+                 visible = true)
 
-    # Add coastlines for 3D globe (black lines, will change with dark mode)
-    coastlines_plot_3d = lines!(ax, GeoMakie.coastlines(), color = :black)
+    # Add coastlines for 3D globe - hidden in transparent gradient mode
+    coastlines_plot_3d = lines!(ax, GeoMakie.coastlines(), color = :black, visible = false)
 
     # Add marker on map showing current location (at elevated z-level to be visible above data)
     scatter!(ax, lon_profile, lat_profile,
@@ -253,22 +249,22 @@ function create_main_figure_3d(var, var_sliced, limits, lon, lat, lon_profile, l
     # Return both star layers as a tuple
     stars = (stars_main, stars_halo)
 
-    return fig, ax, title, coastlines_plot_3d, cbar, p_colormap, p_rgba, rgba_colors_3d, earth_surface, earth_img, colorbar_label, stars
+    return fig, ax, title, coastlines_plot_3d, cbar, p_colormap, p_rgba, rgba_colors_3d, earth_surface, colorbar_label, stars
 end
 
 # Create vertical profile figure
 function create_profile_figure(var, heights, profile, profile_limits, current_height,
                                profile_title, time_selected, bg_color, show_height)
-    # Increased size to take advantage of compact menu
-    fig_profile = Figure(size = (480, 420), backgroundcolor = bg_color, figure_padding = 0)
+    # Width for right column in 3-column layout
+    fig_profile = Figure(size = (800, 540), backgroundcolor = bg_color, figure_padding = 0)
     profile_xlabel = Observable(string(ClimaAnalysis.short_name(var[]), " [", ClimaAnalysis.units(var[]), "]"))
 
     ax_profile = Axis(fig_profile[1, 1],
                      xlabel = profile_xlabel, ylabel = "Height [m]",
                      title = profile_title,
-                     xlabelsize = 13, ylabelsize = 13,
-                     xticklabelsize = 12, yticklabelsize = 12,
-                     titlesize = 16)
+                     xlabelsize = 16, ylabelsize = 16,
+                     xticklabelsize = 14, yticklabelsize = 14,
+                     titlesize = 18)
 
     # Deactivate zoom via scroll
     deactivate_interaction!(ax_profile, :scrollzoom)
@@ -298,16 +294,16 @@ end
 
 # Create time series figure
 function create_timeseries_figure(var, dates_array, timeseries, timeseries_title, time_selected, bg_color)
-    # Increased size to take advantage of compact menu
-    fig_timeseries = Figure(size = (480, 420), backgroundcolor = bg_color, figure_padding = 0)
+    # Width for right column in 3-column layout
+    fig_timeseries = Figure(size = (800, 600), backgroundcolor = bg_color, figure_padding = 0)
     timeseries_ylabel = Observable(string(ClimaAnalysis.short_name(var[]), " [", ClimaAnalysis.units(var[]), "]"))
 
     ax_timeseries = Axis(fig_timeseries[1, 1],
                         xlabel = "", ylabel = timeseries_ylabel,
                         title = timeseries_title,
-                        xlabelsize = 13, ylabelsize = 13,
-                        xticklabelsize = 12, yticklabelsize = 12,
-                        titlesize = 16,
+                        xlabelsize = 16, ylabelsize = 16,
+                        xticklabelsize = 14, yticklabelsize = 14,
+                        titlesize = 18,
                         xticklabelrotation = π/4)
 
     # Deactivate zoom via scroll

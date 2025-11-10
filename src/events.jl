@@ -370,40 +370,66 @@ function setup_quantiles_handler(quantiles_slider, state::AppState)
     end
 end
 
-# Handle play button for animation
-function setup_play_handler(play_button, time_slider, state::AppState)
+# Handle play/pause button for animation
+function setup_play_handler(play_button, time_slider, state::AppState, is_playing, button_label)
     n_times = length(state.times)
     on(play_button) do _
-        println("Playing animation")
-        for t in 1:n_times
-            state.var_sliced[] = var_slice(state.var[], t; height_selected = state.height_selected[])
+        # Toggle playing state
+        is_playing[] = !is_playing[]
 
-            # Update title
-            if has_height(state.var[])
-                update_title_with_height(state, t, state.heights[state.height_selected[]])
-            else
-                update_title(state, t)
+        if is_playing[]
+            # Change to pause symbol
+            button_label[] = "⏸"
+            println("Starting animation")
+
+            # Start animation in a separate task
+            @async begin
+                for t in 1:n_times
+                    # Check if user paused
+                    if !is_playing[]
+                        println("Animation paused")
+                        break
+                    end
+
+                    state.var_sliced[] = var_slice(state.var[], t; height_selected = state.height_selected[])
+
+                    # Update title
+                    if has_height(state.var[])
+                        update_title_with_height(state, t, state.heights[state.height_selected[]])
+                    else
+                        update_title(state, t)
+                    end
+
+                    if has_height(state.var[])
+                        # Update profile data but NOT the limits (limits stay fixed for animation)
+                        state.profile[] = get_profile(state.var[], state.lon_profile[], state.lat_profile[], t)
+                        # Force notify to ensure update
+                        notify(state.profile)
+                        notify(state.heights_obs)
+                    end
+
+                    # Update time slider value to move the vertical line
+                    time_slider.value[] = t
+
+                    sleep(state.speed_selected[])
+                end
+
+                # Animation finished or paused - reset to play symbol
+                is_playing[] = false
+                button_label[] = "▶"
+                println("Animation ended")
             end
-
-            if has_height(state.var[])
-                # Update profile data but NOT the limits (limits stay fixed for animation)
-                state.profile[] = get_profile(state.var[], state.lon_profile[], state.lat_profile[], t)
-                # Force notify to ensure update
-                notify(state.profile)
-                notify(state.heights_obs)
-            end
-
-            # Update time slider value to move the vertical line
-            time_slider.value[] = t
-
-            sleep(state.speed_selected[])
+        else
+            # User clicked pause
+            println("Animation paused by user")
+            button_label[] = "▶"
         end
     end
 end
 
-# Handle transparency gradient changes
+# Handle 3D transparency gradient updates (3D always uses transparent gradient mode)
 function setup_transparency_gradient_handler(state::AppState)
-    # Helper function to compute RGBA colors from data
+    # Helper function to compute RGBA colors from data for 3D figure
     function compute_rgba_colors(data, direction, color_choice, quantiles_threshold)
         # Filter out NaN values for min/max calculations
         valid_data = filter(!isnan, vec(data))
@@ -455,84 +481,7 @@ function setup_transparency_gradient_handler(state::AppState)
         return RGBAf.(rgb[1], rgb[2], rgb[3], alpha_values)
     end
 
-    # Function to toggle between colormap and RGBA mode
-    function toggle_mode()
-        is_gradient = state.transparency_gradient[]
-
-        if is_gradient
-            # Switch to RGBA mode
-            # Show colormap surfaces, hide RGBA surfaces
-            state.surface_plot_colormap.visible = false
-            state.surface_plot_rgba.visible = true
-            state.surface_plot_3d_colormap.visible = false
-            state.surface_plot_3d_rgba.visible = true
-
-            # Delete colorbars when entering transparency gradient mode
-            delete!(state.colorbar)
-            delete!(state.colorbar_3d)
-
-            # Hide coastlines in transparency gradient mode (both 2D and 3D)
-            state.coastlines_plot.visible = false
-            state.coastlines_plot_3d.visible = false
-
-            # Show earth surfaces for background
-            state.earth_surface.visible = true
-            state.earth_surface_3d.visible = true
-
-            # Update RGBA colors
-            update_rgba_colors()
-        else
-            # Switch to colormap mode
-            # Show colormap surfaces, hide RGBA surfaces
-            state.surface_plot_colormap.visible = true
-            state.surface_plot_rgba.visible = false
-            state.surface_plot_3d_colormap.visible = true
-            state.surface_plot_3d_rgba.visible = false
-
-            # Show coastlines in colormap mode (both 2D and 3D)
-            state.coastlines_plot.visible = true
-            state.coastlines_plot_3d.visible = true
-
-            # Recreate colorbars when exiting transparency gradient mode
-            state.colorbar = Colorbar(
-                state.fig[1, 1],
-                state.surface_plot_colormap,
-                vertical = false,
-                colorrange = state.limits,
-                width = Relative(0.25),
-                height = 13,
-                ticklabelsize = 16.0,
-                label = state.colorbar_label,
-                labelsize = 19.0,
-                halign = :right,
-                valign = :bottom,
-                tellheight = false,
-                tellwidth = false
-            )
-
-            state.colorbar_3d = Colorbar(
-                state.fig_3d[1, 1],
-                state.surface_plot_3d_colormap,
-                vertical = false,
-                colorrange = state.limits,
-                width = Relative(0.25),
-                height = 13,
-                ticklabelsize = 16.0,
-                label = state.colorbar_label_3d,
-                labelsize = 19.0,
-                halign = :right,
-                valign = :bottom,
-                tellheight = false,
-                tellwidth = false
-            )
-
-            # Hide 2D earth surface, keep 3D earth visible
-            state.earth_surface.visible = false
-            state.earth_surface_3d.visible = true
-        end
-    end
-
-    # Function to update RGBA colors based on current data
+    # Function to update 3D RGBA colors based on current data
     function update_rgba_colors()
         data = state.var_sliced[]
         direction = state.transparency_direction[]
@@ -541,40 +490,26 @@ function setup_transparency_gradient_handler(state::AppState)
 
         rgba = compute_rgba_colors(data, direction, color_choice, quantiles_threshold)
 
-        # Update both RGBA color observables
-        state.rgba_colors[] = rgba
+        # Update 3D RGBA color observable only (2D never uses RGBA)
         state.rgba_colors_3d[] = rgba
     end
 
-    # Set up observer for transparency gradient checkbox
-    on(state.transparency_gradient) do _
-        toggle_mode()
-    end
-
-    # Set up observers for direction and color changes (only update if in gradient mode)
+    # Set up observers for 3D gradient parameter changes
     on(state.transparency_direction) do _
-        if state.transparency_gradient[]
-            update_rgba_colors()
-        end
+        update_rgba_colors()
     end
 
     on(state.transparency_color) do _
-        if state.transparency_gradient[]
-            update_rgba_colors()
-        end
+        update_rgba_colors()
     end
 
     on(state.transparency_quantiles) do _
-        if state.transparency_gradient[]
-            update_rgba_colors()
-        end
+        update_rgba_colors()
     end
 
-    # Update RGBA colors when data changes (time or height slider moved)
+    # Update 3D RGBA colors when data changes (time or height slider moved)
     on(state.var_sliced) do _
-        if state.transparency_gradient[]
-            update_rgba_colors()
-        end
+        update_rgba_colors()
     end
 end
 
@@ -586,14 +521,14 @@ function setup_dark_mode_handler(state::AppState, session)
         if (is_dark) {
             document.body.style.backgroundColor = 'black';
             document.body.style.color = 'white';
-            // Update menu card specifically (grey background)
-            document.querySelectorAll('.menu-card').forEach(card => {
+            // Update menu card and title card specifically (dark grey background)
+            document.querySelectorAll('.menu-card, .title-card').forEach(card => {
                 card.style.backgroundColor = '#1a1a1a';
                 card.style.color = 'white';
                 card.style.borderColor = '#1a1a1a';
             });
             // Update other cards (black background)
-            document.querySelectorAll('.card:not(.menu-card)').forEach(card => {
+            document.querySelectorAll('.card:not(.menu-card):not(.title-card)').forEach(card => {
                 card.style.backgroundColor = 'black';
                 card.style.color = 'white';
                 card.style.borderColor = 'black';
@@ -628,14 +563,14 @@ function setup_dark_mode_handler(state::AppState, session)
         } else {
             document.body.style.backgroundColor = 'white';
             document.body.style.color = 'black';
-            // Update menu card specifically (grey background)
-            document.querySelectorAll('.menu-card').forEach(card => {
+            // Update menu card and title card specifically (grey background)
+            document.querySelectorAll('.menu-card, .title-card').forEach(card => {
                 card.style.backgroundColor = '#e0e0e0';
                 card.style.color = 'black';
                 card.style.borderColor = '#d0d0d0';
             });
             // Update other cards (white background)
-            document.querySelectorAll('.card:not(.menu-card)').forEach(card => {
+            document.querySelectorAll('.card:not(.menu-card):not(.title-card)').forEach(card => {
                 card.style.backgroundColor = 'white';
                 card.style.color = 'black';
                 card.style.borderColor = '#e0e0e0';
