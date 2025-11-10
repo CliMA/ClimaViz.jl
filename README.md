@@ -23,7 +23,7 @@ and then open this URL on your local browser:
 
 http://localhost:8080/
 
-<img width="3299" height="1330" alt="image" src="https://github.com/user-attachments/assets/9f44ead1-7aa5-4c65-b0d9-daf9ad4c01bb" />
+<img width="2687" height="1427" alt="image" src="https://github.com/user-attachments/assets/89a5ede3-1ff3-4058-8793-2ad6777738e0" />
 
 ## ParamViz.jl
 
