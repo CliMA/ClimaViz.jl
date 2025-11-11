@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+## v0.1.4 - 2025-11-11
+
+### New Features
+
+#### Gradient Transparency Mode
+- Added gradient-based transparency visualization mode for data analysis
+- Allows transparent rendering of regions with low gradients to highlight areas of interest
+- Useful for identifying boundaries, fronts, and regions of rapid change in climate data
+
+#### UI Improvements
+- Added slider control for adjusting gradient threshold in transparency mode
+- Provides real-time adjustment of transparency sensitivity
+- Enhances user control over visualization appearance
+
+### Performance Improvements
+
+#### 3D and 2D View Optimization
+- Both 2D and 3D views now always remain rendered in DOM for instant switching
+- Reduced 3D globe resolution to 0.5 px_per_unit for improved performance
+- Optimized Earth background image quality for faster loading and rendering
+- Streamlined codebase with 77 fewer lines while maintaining functionality
+
 ## v0.1.1 - 2025-11-05
 
 ### Performance Improvements
