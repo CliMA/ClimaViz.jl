@@ -42,7 +42,7 @@ Then run the dashboard command and access it on your local browser.
 # See Also
 - [`ClimaAnalysis.SimDir`](https://clima.github.io/ClimaAnalysis.jl/): For loading simulation data
 """
-function dashboard(path)
+function dashboard(path; HPC = false)
 #    if @isdefined(server)
 #        close(server)
 #    end
@@ -378,12 +378,15 @@ function dashboard(path)
                      transparency_quantiles_slider, quantiles_value_label, transparency_direction_menu, transparency_color_menu)
     end
 
-    # Those lines below should probably be run for HPC
-#    IP = "127.0.0.1"
-#    port = 8080
-#    global server = Bonito.Server(IP, port; proxy_url = "http://localhost:$port")
-#    Bonito.route!(server, "/" => app)
-#    print_startup_message(port)
+    # Those lines below should be run for HPC
+    if HPC == true
+        IP = "127.0.0.1"
+        port = 8080
+        global server = Bonito.Server(IP, port; proxy_url = "http://localhost:$port")
+        Bonito.route!(server, "/" => app)
+        print_startup_message(port)
+    end
+
     return app
 end
 
