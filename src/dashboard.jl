@@ -43,9 +43,9 @@ Then run the dashboard command and access it on your local browser.
 - [`ClimaAnalysis.SimDir`](https://clima.github.io/ClimaAnalysis.jl/): For loading simulation data
 """
 function dashboard(path)
-    if @isdefined(server)
-        close(server)
-    end
+#    if @isdefined(server)
+#        close(server)
+#    end
 
     app = Bonito.App(title="CliMA dashboard") do session
         # Load simulation data
@@ -378,9 +378,28 @@ function dashboard(path)
                      transparency_quantiles_slider, quantiles_value_label, transparency_direction_menu, transparency_color_menu)
     end
 
-    IP = "127.0.0.1"
-    port = 8081
-    global server = Bonito.Server(IP, port; proxy_url = "http://localhost:$port")
-    Bonito.route!(server, "/" => app)
-    print_startup_message(port)
+    # Those lines below should probably be run for HPC
+#    IP = "127.0.0.1"
+#    port = 8080
+#    global server = Bonito.Server(IP, port; proxy_url = "http://localhost:$port")
+#    Bonito.route!(server, "/" => app)
+#    print_startup_message(port)
+    return app
 end
+
+# on Microsoft Azure run:
+#=
+    using ClimaViz
+    path_atmos = "data/climaland_longrun"
+    path_land = "data/climaatmos"
+    IP = "127.0.0.1"
+    port = 9385
+    # if Azure
+    server = Bonito.Server(IP, port; proxy_url = "https://clima.westus3.cloudapp.azure.com/jsserve/")
+    # if local
+    server = Bonito.Server(IP, port; proxy_url = "http://localhost:$port")
+    atmos_app = dashboard(path_atmos);
+    land_app = dashboard(path_land);
+    Bonito.route!(server, "/atmos" => atmos_app)
+    Bonito.route!(server, "/land" => land_app)
+=#
