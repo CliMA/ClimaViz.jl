@@ -6,6 +6,7 @@ const OutputVar3D = Union{
 
 const OutputVar4D = Union{
     ClimaAnalysis.Var.OutputVar{Vector{Float64}, Array{Float64, 4}, String, Dict{Union{AbstractString, Symbol}, Any}},
+    ClimaAnalysis.Var.OutputVar{Vector{Float32}, Array{Float32, 4}, String, Dict{Union{AbstractString, Symbol}, Any}},
     ClimaAnalysis.Var.OutputVar{Vector, Array{Float32, 4}, String, Dict{Union{AbstractString, Symbol}, Any}}
 }
 
