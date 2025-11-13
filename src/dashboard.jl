@@ -380,7 +380,7 @@ function dashboard(path; HPC = false)
 
     # Those lines below should be run for HPC
     if HPC == true
-        IP = "127.0.0.1"
+        IP = "0.0.0.0"
         port = 8080
         global server = Bonito.Server(IP, port; proxy_url = "http://localhost:$port")
         Bonito.route!(server, "/" => app)

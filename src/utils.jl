@@ -1,6 +1,7 @@
 # Type aliases for cleaner code
 const OutputVar3D = Union{
     ClimaAnalysis.Var.OutputVar{Vector{Float64}, Array{Float64, 3}, String, Dict{Union{AbstractString, Symbol}, Any}},
+    ClimaAnalysis.Var.OutputVar{Vector{Float32}, Array{Float32, 3}, String, Dict{Union{AbstractString, Symbol}, Any}},
     ClimaAnalysis.Var.OutputVar{Vector, Array{Float32, 3}, String, Dict{Union{AbstractString, Symbol}, Any}}
 }
 
