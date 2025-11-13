@@ -1,0 +1,22 @@
+name: Say hello on VM
+
+on:
+  workflow_dispatch:  # run manually from the Actions tab
+  # you can add more triggers later (e.g. on: push)
+
+jobs:
+  hello-on-vm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up SSH agent with VM key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VM_SSH_KEY }}
+
+      - name: Create hello.txt on VM
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+            ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
+            'echo "Hello from GitHub CI at $(date)" > /home/arenchon/hello.txt'
+
