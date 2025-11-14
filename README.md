@@ -1,5 +1,14 @@
 # ClimaViz.jl
 
+<div align="center">
+
+| | |
+|---------------------:|:----------------------------------------------|
+| **Documentation**    | [![dev][docs-stable-img]][docs-stable-url]          |
+| **Downloads**        | [![downloads][downloads-img]][downloads-url]  |
+
+</div>
+
 Generate a [web dashboard](https://clima.westus3.cloudapp.azure.com/jsserve/atmos) of your simulation outputs directly from HPC or locally.
 Currently supports ClimaAtmos and ClimaLand.
 
@@ -45,3 +54,9 @@ In animations/clouds, you will find code to generate an animation of clouds from
 <p align="center">
   <img src="https://github.com/user-attachments/assets/778b0c14-a5d7-4907-82db-6d1f8a0c5b07" alt="animation (1)">
 </p>
+
+[docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
+[docs-stable-url]: https://CliMA.github.io/ClimaViz.jl/dev/
+
+[downloads-img]: https://img.shields.io/badge/dynamic/json?url=http%3A%2F%2Fjuliapkgstats.com%2Fapi%2Fv1%2Ftotal_downloads%2FClimaViz&query=total_requests&suffix=%2Ftotal&label=Downloads
+[downloads-url]: http://juliapkgstats.com/pkg/ClimaViz
