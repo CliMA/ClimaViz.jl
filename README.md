@@ -1,6 +1,6 @@
-# ClimaViz.jl
-
 <div align="center">
+
+<img width="300" height="300" alt="ChatGPT Image Nov 14, 2025, 11_28_41 AM" src="https://github.com/user-attachments/assets/be30dd34-29d4-4156-9ff9-362a6246d505" />
 
 | | |
 |---------------------:|:----------------------------------------------|
@@ -12,7 +12,18 @@
 Generate a [web dashboard](https://clima.westus3.cloudapp.azure.com/jsserve/atmos) of your simulation outputs directly from HPC or locally.
 Currently supports ClimaAtmos and ClimaLand.
 
+<img width="2687" height="1427" alt="image" src="https://github.com/user-attachments/assets/89a5ede3-1ff3-4058-8793-2ad6777738e0" />
+
 ## Instructions:
+
+Locally, simply do:
+
+```julia
+using ClimaViz
+dashboard(path)
+```
+
+Where `path` is the path to your diagnostics folder.
 
 From HPC, you need to ssh with port forwarding:
 
@@ -20,19 +31,7 @@ From HPC, you need to ssh with port forwarding:
 ssh -L 8080:localhost:8080 user@ssh.example.com
 ```
 
-Install ClimaViz (`Pkg.add(ClimaViz.jl)`) and give the path of your output directory
-(e.g., `path = "output/"`). Launch the web app:
-
-```julia
-using ClimaViz
-dashboard(path)
-```
-
-and then open this URL on your local browser:
-
-http://localhost:8080/
-
-<img width="2687" height="1427" alt="image" src="https://github.com/user-attachments/assets/89a5ede3-1ff3-4058-8793-2ad6777738e0" />
+And then open this URL on your local browser: http://localhost:8080/
 
 ## ParamViz.jl
 
