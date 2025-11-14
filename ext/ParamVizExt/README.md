@@ -1,4 +1,4 @@
-# ParamViz.jl - dynamic parameterisation web app 
+# ParamViz.jl - dynamic parameterisation web app
 ![chrome_a0AHoCQMHV](https://github.com/CliMA/ParamViz.jl/assets/22160257/832adffe-5a5b-4d46-9d15-a088bcb4b460)
 ## Install ParamViz.jl: (unregistered for now)
 ```jl
@@ -15,8 +15,8 @@ julia> FT = Float64
 
 ## Create a parameterisation function
 ```jl
-function ParamViz.parameterisation(PAR, LAI, ρ_leaf, K, Ω, a, b)   
-         APAR = PAR * (1 - ρ_leaf) * (1 - exp(-K * LAI * Ω)) 
+function ParamViz.parameterisation(PAR, LAI, ρ_leaf, K, Ω, a, b)
+         APAR = PAR * (1 - ρ_leaf) * (1 - exp(-K * LAI * Ω))
          return APAR
 end
 ```
@@ -45,5 +45,5 @@ end
 julia> webapp(ParamViz.parameterisation, inputs, output)
 ```
 
-## Open app in your browser: 
+## Open app in your browser:
 Open your favorite browser and go to the URL http://localhost:9384/browser-display
