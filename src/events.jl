@@ -21,6 +21,8 @@ function setup_mouse_click_handler(fig, state::AppState)
             # Update profile if variable has height
             if has_height(state.var[])
                 state.profile[] = get_profile(state.var[], state.lon_profile[], state.lat_profile[], state.time_selected[])
+                # Update global average profile (computed on-the-fly)
+                state.profile_global_avg[] = get_global_avg_profile(state.var[], state.time_selected[])
                 # Force both observables to notify even if values haven't changed
                 notify(state.profile)
                 notify(state.heights_obs)
@@ -44,6 +46,8 @@ function setup_mouse_click_handler(fig, state::AppState)
 
             # Update time series
             state.timeseries[] = get_timeseries(state.var[], state.lon_profile[], state.lat_profile[]; height_selected = state.height_selected[])
+            # Update global average timeseries (computed on-the-fly)
+            state.timeseries_global_avg[] = get_global_avg_timeseries(state.var[]; height_selected = state.height_selected[])
             autolimits!(state.ax_timeseries)
         end
     end
@@ -263,6 +267,9 @@ function update_for_new_variable(state::AppState, new_var, heights_new)
     if has_height(state.var[])
         state.profile[] = get_profile(state.var[], state.lon_profile[], state.lat_profile[], state.time_selected[])
 
+        # Update global average profile (computed on-the-fly)
+        state.profile_global_avg[] = get_global_avg_profile(state.var[], state.time_selected[])
+
         # Force both observables to notify to ensure plot updates
         # This is critical when heights are identical but profile data changed
         notify(state.profile)
@@ -287,6 +294,8 @@ function update_for_new_variable(state::AppState, new_var, heights_new)
         println("Y-limits set to: ", (minimum(state.heights), maximum(state.heights)))
     end
     state.timeseries[] = get_timeseries(state.var[], state.lon_profile[], state.lat_profile[]; height_selected = state.height_selected[])
+    # Update global average timeseries (computed on-the-fly)
+    state.timeseries_global_avg[] = get_global_avg_timeseries(state.var[]; height_selected = state.height_selected[])
     autolimits!(state.ax_timeseries)
 
     # Update show_height LAST after all data is ready
@@ -321,6 +330,8 @@ function setup_time_handler(time_slider, state::AppState)
         if has_height(state.var[])
             # Update profile data but NOT the limits (limits stay fixed for animation)
             state.profile[] = get_profile(state.var[], state.lon_profile[], state.lat_profile[], t)
+            # Update global average profile (computed on-the-fly)
+            state.profile_global_avg[] = get_global_avg_profile(state.var[], t)
             # Force notify to ensure update
             notify(state.profile)
             notify(state.heights_obs)
@@ -344,6 +355,8 @@ function setup_height_handler(height_slider, state::AppState)
 
         # Update time series for new height
         state.timeseries[] = get_timeseries(state.var[], state.lon_profile[], state.lat_profile[]; height_selected = h)
+        # Update global average timeseries (computed on-the-fly)
+        state.timeseries_global_avg[] = get_global_avg_timeseries(state.var[]; height_selected = h)
         autolimits!(state.ax_timeseries)
 
         # Update height value label

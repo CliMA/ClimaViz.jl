@@ -65,6 +65,10 @@ mutable struct AppState
     timeseries_ylabel::Observable
     current_time_index::Observable
 
+    # Observables for global average data
+    profile_global_avg::Observable
+    timeseries_global_avg::Observable
+
     # UI observables
     time_selected::Observable
     height_selected::Observable
@@ -89,6 +93,8 @@ mutable struct AppState
     profile_lines::Any
     profile_hlines::Any
     timeseries_lines::Any
+    profile_global_avg_lines::Any
+    timeseries_global_avg_lines::Any
     coastlines_plot::Any
     coastlines_plot_3d::Any
     colorbar::Any
@@ -264,6 +270,87 @@ function get_timeseries(var::OutputVar3D, lon, lat; height_selected = 1)
         lat = lat
     )
     return var_ts.data
+end
+
+# Get global average profile (compute spatial mean on-the-fly)
+# Slice at time, then average across all lon/lat
+function get_global_avg_profile(var::OutputVar4D, time_selected)
+    z_dim = get_height_dim_name(var)
+    # Get the number of heights
+    n_heights = length(var.dims[z_dim])
+
+    # Pre-allocate result array
+    profile_avg = zeros(n_heights)
+
+    # For each height level, compute spatial mean
+    for i in 1:n_heights
+        if z_dim == "z"
+            var_slice = ClimaAnalysis.slice(
+                var,
+                time = var.dims["time"][time_selected],
+                z = var.dims["z"][i]
+            )
+        else # z_reference
+            var_slice = ClimaAnalysis.slice(
+                var,
+                time = var.dims["time"][time_selected],
+                z_reference = var.dims["z_reference"][i]
+            )
+        end
+        # var_slice.data is now 2D: (lon, lat)
+        # Compute mean across all spatial points, ignoring NaNs
+        profile_avg[i] = Statistics.mean(filter(!isnan, vec(var_slice.data)))
+    end
+
+    return profile_avg
+end
+
+# Get global average timeseries (compute spatial mean on-the-fly)
+# For each time point, average across all lon/lat at the selected height
+function get_global_avg_timeseries(var::OutputVar4D; height_selected = 1)
+    z_dim = get_height_dim_name(var)
+    # Get the number of time points
+    n_times = length(var.dims["time"])
+
+    # Pre-allocate result array
+    timeseries_avg = zeros(n_times)
+
+    # For each time point, compute spatial mean at the selected height
+    for i in 1:n_times
+        if z_dim == "z"
+            var_slice = ClimaAnalysis.slice(
+                var,
+                time = var.dims["time"][i],
+                z = var.dims["z"][height_selected]
+            )
+        else # z_reference
+            var_slice = ClimaAnalysis.slice(
+                var,
+                time = var.dims["time"][i],
+                z_reference = var.dims["z_reference"][height_selected]
+            )
+        end
+        # var_slice.data is now 2D: (lon, lat)
+        # Compute mean across all spatial points, ignoring NaNs
+        timeseries_avg[i] = Statistics.mean(filter(!isnan, vec(var_slice.data)))
+    end
+
+    return timeseries_avg
+end
+
+function get_global_avg_timeseries(var::OutputVar3D; height_selected = 1)
+    # For 3D variables (lon, lat, time), compute spatial mean for each time
+    n_times = length(var.dims["time"])
+    timeseries_avg = zeros(n_times)
+
+    for i in 1:n_times
+        var_slice = ClimaAnalysis.slice(var, time = var.dims["time"][i])
+        # var_slice.data is now 2D: (lon, lat)
+        # Compute mean across all spatial points, ignoring NaNs
+        timeseries_avg[i] = Statistics.mean(filter(!isnan, vec(var_slice.data)))
+    end
+
+    return timeseries_avg
 end
 
 # Title update functions

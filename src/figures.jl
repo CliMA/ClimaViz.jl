@@ -254,7 +254,7 @@ end
 
 # Create vertical profile figure
 function create_profile_figure(var, heights, profile, profile_limits, current_height,
-                               profile_title, time_selected, bg_color, show_height)
+                               profile_title, time_selected, bg_color, show_height, profile_global_avg)
     # Width for right column in 3-column layout
     fig_profile = Figure(size = (800, 540), backgroundcolor = bg_color, figure_padding = 0)
     profile_xlabel = Observable(string(ClimaAnalysis.short_name(var[]), " [", ClimaAnalysis.units(var[]), "]"))
@@ -275,6 +275,8 @@ function create_profile_figure(var, heights, profile, profile_limits, current_he
     # Create profile plot elements with separate x,y observables - simple and direct
     # No longer need to control visibility of lines - the Box will cover them
     profile_lines = lines!(ax_profile, profile, heights_obs, color = :black, linewidth = 3)
+    # Add global average line in dotted grey
+    profile_global_avg_lines = lines!(ax_profile, profile_global_avg, heights_obs, color = :grey, linestyle = :dot, linewidth = 2)
     xlims!(ax_profile, profile_limits[])
     profile_hlines = hlines!(ax_profile, current_height, color = :grey, linestyle = :dash, linewidth = 2)
 
@@ -289,11 +291,11 @@ function create_profile_figure(var, heights, profile, profile_limits, current_he
                       tellheight = false)
 
     fig_profile
-    return fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs, profile_box
+    return fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs, profile_box, profile_global_avg_lines
 end
 
 # Create time series figure
-function create_timeseries_figure(var, dates_array, timeseries, timeseries_title, time_selected, bg_color)
+function create_timeseries_figure(var, dates_array, timeseries, timeseries_title, time_selected, bg_color, timeseries_global_avg)
     # Width for right column in 3-column layout
     fig_timeseries = Figure(size = (800, 600), backgroundcolor = bg_color, figure_padding = 0)
     timeseries_ylabel = Observable(string(ClimaAnalysis.short_name(var[]), " [", ClimaAnalysis.units(var[]), "]"))
@@ -312,6 +314,8 @@ function create_timeseries_figure(var, dates_array, timeseries, timeseries_title
     # Use numeric indices for plotting
     time_indices = 1:length(dates_array)
     timeseries_lines = lines!(ax_timeseries, time_indices, timeseries, color = :black, linewidth = 2)
+    # Add global average line in dotted grey
+    timeseries_global_avg_lines = lines!(ax_timeseries, time_indices, timeseries_global_avg, color = :grey, linestyle = :dot, linewidth = 2)
 
     # Add vertical line showing current time
     current_time_index = Observable(time_selected[])
@@ -325,5 +329,5 @@ function create_timeseries_figure(var, dates_array, timeseries, timeseries_title
 
     autolimits!(ax_timeseries)
 
-    return fig_timeseries, ax_timeseries, timeseries_ylabel, current_time_index, n_ticks, timeseries_lines
+    return fig_timeseries, ax_timeseries, timeseries_ylabel, current_time_index, n_ticks, timeseries_lines, timeseries_global_avg_lines
 end
