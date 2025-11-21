@@ -21,10 +21,19 @@
         @test max_val ≈ 5.0
 
         # Test with single value (edge case)
+        # When all values are the same, add a buffer to avoid Makie error
         profile_data_single = [3.0]
         min_val, max_val = ClimaViz.get_profile_limits(profile_data_single)
-        @test min_val == 3.0  # No range, no padding
-        @test max_val == 3.0
+        # Buffer = max(abs(3.0) * 0.1, 0.5) = max(0.3, 0.5) = 0.5
+        @test min_val ≈ 2.5
+        @test max_val ≈ 3.5
+
+        # Test with all zeros (another edge case)
+        profile_data_zeros = [0.0, 0.0, 0.0]
+        min_val, max_val = ClimaViz.get_profile_limits(profile_data_zeros)
+        # Buffer = max(abs(0.0) * 0.1, 0.5) = 0.5
+        @test min_val ≈ -0.5
+        @test max_val ≈ 0.5
     end
 
     @testset "has_height" begin

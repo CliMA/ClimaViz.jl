@@ -19,6 +19,15 @@ function get_profile_limits(profile_data; padding_fraction = 0.05)
     profile_max = maximum(profile_data)
     # Add some padding (5% on each side by default)
     padding = (profile_max - profile_min) * padding_fraction
+
+    # Handle edge case where all values are the same
+    # Makie requires limits to be different, so add a fixed buffer
+    if profile_min == profile_max
+        buffer = abs(profile_min) * 0.1  # 10% of the value
+        buffer = max(buffer, 0.5)  # Minimum buffer of 0.5
+        return (profile_min - buffer, profile_max + buffer)
+    end
+
     return (profile_min - padding, profile_max + padding)
 end
 
@@ -32,6 +41,15 @@ function get_profile_limits_all_times(var::OutputVar4D, lon, lat; padding_fracti
     profile_max = maximum(var_profile_all_times.data)
     # Add padding
     padding = (profile_max - profile_min) * padding_fraction
+
+    # Handle edge case where all values are the same
+    # Makie requires limits to be different, so add a fixed buffer
+    if profile_min == profile_max
+        buffer = abs(profile_min) * 0.1  # 10% of the value
+        buffer = max(buffer, 0.5)  # Minimum buffer of 0.5
+        return (profile_min - buffer, profile_max + buffer)
+    end
+
     return (profile_min - padding, profile_max + padding)
 end
 
