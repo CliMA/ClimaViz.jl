@@ -31,6 +31,12 @@ From HPC, you need to ssh with port forwarding:
 ssh -L 8080:localhost:8080 user@ssh.example.com
 ```
 
+you will also need an additional keyword argument:
+
+```julia
+dashboard(path; HPC = true)
+```
+
 And then open this URL on your local browser: http://localhost:8080/
 
 ## ParamViz.jl

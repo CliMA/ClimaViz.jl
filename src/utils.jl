@@ -19,6 +19,15 @@ function get_profile_limits(profile_data; padding_fraction = 0.05)
     profile_max = maximum(profile_data)
     # Add some padding (5% on each side by default)
     padding = (profile_max - profile_min) * padding_fraction
+
+    # Handle case where all data is the same (padding would be 0)
+    if profile_min == profile_max
+        # Add a fixed buffer around the value
+        center = profile_min
+        buffer = abs(center) * 0.1 + 0.1  # 10% of value or 0.1, whichever is larger
+        return (center - buffer, center + buffer)
+    end
+
     return (profile_min - padding, profile_max + padding)
 end
 
@@ -32,6 +41,15 @@ function get_profile_limits_all_times(var::OutputVar4D, lon, lat; padding_fracti
     profile_max = maximum(var_profile_all_times.data)
     # Add padding
     padding = (profile_max - profile_min) * padding_fraction
+
+    # Handle case where all data is the same (padding would be 0)
+    if profile_min == profile_max
+        # Add a fixed buffer around the value
+        center = profile_min
+        buffer = abs(center) * 0.1 + 0.1  # 10% of value or 0.1, whichever is larger
+        return (center - buffer, center + buffer)
+    end
+
     return (profile_min - padding, profile_max + padding)
 end
 
@@ -199,13 +217,33 @@ function get_limits(var::OutputVar4D, time_selected; height_selected = 1, low_q 
         var_allt = ClimaAnalysis.slice(var, z_reference = var.dims["z_reference"][height_selected])
     end
     data = filter(!isnan, vec(var_allt.data))
-    return (Statistics.quantile(data, low_q), Statistics.quantile(data, high_q))
+    lim_low = Statistics.quantile(data, low_q)
+    lim_high = Statistics.quantile(data, high_q)
+
+    # Handle case where limits are identical (constant data)
+    if lim_low == lim_high
+        center = lim_low
+        buffer = abs(center) * 0.1 + 0.1
+        return (center - buffer, center + buffer)
+    end
+
+    return (lim_low, lim_high)
 end
 
 function get_limits(var::OutputVar3D, time_selected; height_selected = 1, low_q = 0.02, high_q = 0.98)
     var_allt = ClimaAnalysis.slice(var)
     data = filter(!isnan, vec(var_allt.data))
-    return (Statistics.quantile(data, low_q), Statistics.quantile(data, high_q))
+    lim_low = Statistics.quantile(data, low_q)
+    lim_high = Statistics.quantile(data, high_q)
+
+    # Handle case where limits are identical (constant data)
+    if lim_low == lim_high
+        center = lim_low
+        buffer = abs(center) * 0.1 + 0.1
+        return (center - buffer, center + buffer)
+    end
+
+    return (lim_low, lim_high)
 end
 
 # Generic fallback
@@ -221,7 +259,17 @@ function get_limits(var, time_selected; height_selected = 1, low_q = 0.02, high_
         var_allt = ClimaAnalysis.slice(var)
     end
     data = filter(!isnan, vec(var_allt.data))
-    return (Statistics.quantile(data, low_q), Statistics.quantile(data, high_q))
+    lim_low = Statistics.quantile(data, low_q)
+    lim_high = Statistics.quantile(data, high_q)
+
+    # Handle case where limits are identical (constant data)
+    if lim_low == lim_high
+        center = lim_low
+        buffer = abs(center) * 0.1 + 0.1
+        return (center - buffer, center + buffer)
+    end
+
+    return (lim_low, lim_high)
 end
 
 # Get vertical profile at location

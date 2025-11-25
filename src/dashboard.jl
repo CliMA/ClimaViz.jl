@@ -220,8 +220,9 @@ function dashboard(path; HPC = false)
         profile_title = Observable(profile_title_string(var[], dates_array, time_selected[], lon_profile[], lat_profile[]))
         timeseries_title = Observable(timeseries_title_string(var[], heights, height_selected[], lon_profile[], lat_profile[]))
 
-        # Download Earth image once for both 2D and 3D figures (1024px for lower memory usage)
-        earth_img = FileIO.load(download("https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Blue_Marble_Next_Generation_%2B_topography_%2B_bathymetry.jpg/1024px-Blue_Marble_Next_Generation_%2B_topography_%2B_bathymetry.jpg"))
+        # Load Earth image from assets folder (avoids download failures)
+        earth_img_path = joinpath(@__DIR__, "..", "assets", "Blue_Marble.jpg")
+        earth_img = FileIO.load(earth_img_path)
 
         # Create figures (with black background for dark mode by default)
         fig, ax, title, coastlines_plot, cbar, surface_plot_colormap, surface_plot_rgba, rgba_colors, earth_surface, colorbar_label = create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :black, earth_img)
