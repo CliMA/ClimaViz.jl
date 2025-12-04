@@ -1,7 +1,9 @@
 name: Restart ClimaViz service on VM
 
 on:
-  workflow_dispatch:
+  repository_dispatch:
+    types: [restart_climaviz]   # triggered from Buildkite
+  workflow_dispatch:            # manual trigger from GitHub UI
 
 jobs:
   restart-service:
@@ -18,4 +20,3 @@ jobs:
           ssh -o StrictHostKeyChecking=no \
             ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
             'sudo systemctl restart climaviz.service'
-
