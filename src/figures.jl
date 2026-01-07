@@ -276,7 +276,8 @@ function create_profile_figure(var, heights, profile, profile_limits, current_he
     # No longer need to control visibility of lines - the Box will cover them
     profile_lines = lines!(ax_profile, profile, heights_obs, color = :black, linewidth = 3)
     xlims!(ax_profile, profile_limits[])
-    profile_hlines = hlines!(ax_profile, current_height, color = :grey, linestyle = :dash, linewidth = 2)
+    # Use solid line instead of dash to avoid WebGL shader pattern errors
+    profile_hlines = hlines!(ax_profile, current_height, color = (:grey, 0.7), linewidth = 2)
 
     # Create a Box that covers the figure when there's no height dimension
     # The box is white in normal mode, black in dark mode
@@ -315,7 +316,8 @@ function create_timeseries_figure(var, dates_array, timeseries, timeseries_title
 
     # Add vertical line showing current time
     current_time_index = Observable(time_selected[])
-    vlines!(ax_timeseries, current_time_index, color = :grey, linestyle = :dash, linewidth = 2)
+    # Use solid line instead of dash to avoid WebGL shader pattern errors
+    vlines!(ax_timeseries, current_time_index, color = (:grey, 0.7), linewidth = 2)
 
     # Format x-axis to show dates
     n_ticks = min(10, length(dates_array))
