@@ -1,5 +1,8 @@
 module ParamVizExt
 
+using ClimaViz: Drivers, Parameters, Constants, Inputs, Output
+import ClimaViz: parameterisation, webapp, param_dashboard
+
 using WGLMakie
 using Bonito
 using SparseArrays
@@ -16,4 +19,4 @@ function __init__()
     Unitful.register(ParamVizExt)
 end
 
-end 
+end

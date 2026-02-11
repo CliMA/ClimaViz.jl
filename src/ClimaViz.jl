@@ -14,7 +14,10 @@ include("figures.jl")
 include("events.jl")
 include("layout.jl")
 include("dashboard.jl")
+include("paramviz.jl")
 
 export dashboard
+export Drivers, Parameters, Constants, Inputs, Output
+export parameterisation, webapp, param_dashboard
 
 end # module ClimaViz

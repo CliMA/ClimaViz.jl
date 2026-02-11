@@ -1,6 +1,9 @@
 using Unitful: K, °C, mol, μmol, m, s, kg, J
+import ClimaParams as CP
+import ClimaLand.Parameters as LP
+FT = Float64
 
-function ParamViz.parameterisation(
+function ClimaViz.parameterisation(
     Tₛ,
     θ, # drivers
     ν,
@@ -11,30 +14,39 @@ function ParamViz.parameterisation(
     O₂_a,
     p_sx,
     Csom, # parameters
-    θ_a100,
     D_liq,
     D_oa,
+    R_gas,
 ) # constants
-    toml_dict = LP.create_toml_dict(FT)
-    params = SoilCO2ModelParameters(toml_dict; ν)
     # θ has to be lower than porosity
     if θ > ν
         θ = ν
     end
-
-    Rh = microbe_source(Tₛ, θ, Csom, params)
+    # O₂ availability (Millington-Quirk tortuosity)
+    θ_a = max(ν - θ, FT(0))
+    O2_avail = D_oa * O₂_a * θ_a^(FT(4 / 3))
+    # DAMM model (Dual Arrhenius Michaelis-Menten)
+    Vmax = α_sx * exp(-Ea_sx / (R_gas * Tₛ))
+    Sx = p_sx * Csom * D_liq * max(θ, FT(0))^3
+    MM_sx = Sx / (kM_sx + Sx)
+    MM_o2 = O2_avail / (kM_O₂ + O2_avail)
+    Rh = Vmax * MM_sx * MM_o2
     return Rh
 end
 
 function Rh_app_f()
+    toml_dict = LP.create_toml_dict(FT)
+    earth_param_set = LP.LandParameters(toml_dict)
+    R_gas = FT(LP.gas_constant(earth_param_set))
+
     drivers = Drivers(
         ("Tₛ (°C)", "θ (m³ m⁻³)"), # drivers.names
-        (FT.([273, 323]), FT.([0.0, 1.0])), # drivers.ranges 
+        (FT.([273, 323]), FT.([0.0, 1.0])), # drivers.ranges
         ((K, °C), (m^3 * m^-3, m^3 * m^-3)),
     )
 
     parameters = Parameters(
-        (# names   
+        (# names
             "Soil porosity, ν (m³ m⁻³)",
             "Pre-exponential factor, α_sx (kg C m⁻³ s⁻¹)",
             "Activation energy, Ea_sx (J mol⁻¹)",
@@ -49,8 +61,8 @@ function Rh_app_f()
             FT.([100e3, 300e3]), # α_sx
             FT.([50e3, 70e3]), # Ea_sx
             FT.([1e-10, 0.1]), # kM_sx
-            FT.([1e-10, 0.1]), # kM_o2
-            FT.([0.005, 0.5]), # O2_a
+            FT.([1e-10, 0.1]), # kM_O₂
+            FT.([0.005, 0.5]), # O₂_a
             FT.([0.005, 0.5]), # p_sx
             FT.([1.0, 10.0]), # Csom
         ),
@@ -59,8 +71,8 @@ function Rh_app_f()
             (kg * m^-3 * s^-1, kg * m^-3 * s^-1), # α_sx
             (J * mol^-1, J * mol^-1), # Ea_sx
             (kg * m^-3, kg * m^-3), # kM_sx
-            (m^3 * m^-3, m^3 * m^-3), # kM_O2
-            (m, m), # O2_a
+            (m^3 * m^-3, m^3 * m^-3), # kM_O₂
+            (m, m), # O₂_a
             (m, m), # p_sx
             (kg * m^-3, kg * m^-3), # Csom
         ),
@@ -68,25 +80,25 @@ function Rh_app_f()
 
     constants = Constants(
         (# names
-            "Air-filled porosity at soil water potential of -100 cm H₂O (~ 10 Pa)",
             "Diffusivity of soil C substrate in liquid (unitless)",
-            "Diffusion coefficient of oxygen in air, dimensionless",
+            "Diffusion coefficient of oxygen in air (unitless)",
+            "Universal gas constant (J mol⁻¹ K⁻¹)",
         ),
         (# values
-            FT(0.1816), # θ_a100
             FT(3.17), # D_liq
             FT(1.67), # D_oa
+            R_gas,
         ),
     )
 
     inputs = Inputs(drivers, parameters, constants)
 
     output = Output(
-        "Rh (mg C m⁻³ s⁻¹)", # name #NEED TO CONVERT THE UNIT
+        "Rh (mg C m⁻³ s⁻¹)", # name
         [0, 20 * 1e-6], # range
-        (mol * m^-2 * s^-1, μmol * m^-2 * s^-1), # unit from, unit to --> actually need to fix this, should be g to mg C m-3 s-1
+        (mol * m^-2 * s^-1, μmol * m^-2 * s^-1), # unit from, unit to
     )
 
-    Rh_app = webapp(ParamViz.parameterisation, inputs, output)
+    Rh_app = webapp(parameterisation, inputs, output)
     return Rh_app
 end
