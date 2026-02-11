@@ -1,5 +1,3 @@
-export param_dashboard, webapp
-
 """
     param_dashboard(parameterisation::Function, inputs::Inputs, sliders)
 

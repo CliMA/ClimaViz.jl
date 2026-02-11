@@ -1,5 +1,5 @@
 # Load packages
-using ParamViz
+using ClimaViz
 using Bonito
 using ClimaLand
 using ClimaLand.Canopy
@@ -7,7 +7,7 @@ using ClimaLand.Soil.Biogeochemistry
 import ClimaParams as CP
 import ClimaLand.Parameters as LP
 FT = Float64
-toml_dict = create_toml_dict(FT)
+toml_dict = LP.create_toml_dict(FT)
 earth_param_set = LP.LandParameters(toml_dict)
 RTparams = BeerLambertParameters(toml_dict)
 
@@ -21,16 +21,16 @@ server = Server(
 )
 
 # Load and create apps
-include("apps/leaf_an.jl");
+include("leaf_an.jl");
 An_app = An_app_f();
 An_app = An_app_f(); # need to run twice for unicode character... (bug)
-include("apps/beer.jl");
+include("beer.jl");
 beer_app = Beer_app_f();
 beer_app = Beer_app_f();
-include("apps/hetero_resp.jl");
+include("hetero_resp.jl");
 Rh_app = Rh_app_f();
 Rh_app = Rh_app_f();
-include("apps/leaf_an_ci.jl");
+include("leaf_an_ci.jl");
 An_ci_app = An_ci_app_f();
 An_ci_app = An_ci_app_f();
 
