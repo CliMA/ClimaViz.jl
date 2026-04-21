@@ -56,3 +56,19 @@ end
 function parameterisation end
 function webapp end
 function param_dashboard end
+
+"""
+    dashboard_paramviz(model_name::String; ip="127.0.0.1", port=9384)
+
+Launch a web dashboard for a built-in parameterisation model.
+
+`model_name` selects the model to visualize. Currently available:
+- `"damm_model"` — Heterotrophic respiration (Dual Arrhenius Michaelis-Menten).
+
+Starts a Bonito server, routes the app at `"/"`, prints the URL, and returns
+the server. In a script, call `wait()` after to keep the process alive.
+
+Implemented by the `ParamVizExt` extension — load `Unitful` and `UnitfulMoles`
+in the session for this to resolve.
+"""
+function dashboard_paramviz end

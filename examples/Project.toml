@@ -6,3 +6,6 @@ ClimaViz = "396db26a-da9e-4cf0-936a-85fded5d16c1"
 Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 UnitfulMoles = "999f2bd7-36bf-5ba7-9bc1-c9473aa75374"
 WGLMakie = "276b4fcb-3e11-5398-bf8b-a0c2d153d008"
+
+[sources]
+ClimaLand = {url = "https://github.com/CliMA/ClimaLand.jl", rev = "ar/respiration_update"}
