@@ -4,12 +4,14 @@ import ClimaAnalysis
 import Bonito
 import Statistics
 import Dates
+using Dates: Day, Hour
 import FileIO
 import Random
 using WGLMakie
 using GeoMakie
 
 include("utils.jl")
+include("benchmark.jl")
 include("figures.jl")
 include("events.jl")
 include("layout.jl")

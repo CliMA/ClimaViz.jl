@@ -1,71 +1,31 @@
-# Type aliases for cleaner code
-const OutputVar3D = Union{
-    ClimaAnalysis.Var.OutputVar{Vector{Float64}, Array{Float64, 3}, String, Dict{Union{AbstractString, Symbol}, Any}},
-    ClimaAnalysis.Var.OutputVar{Vector{Float32}, Array{Float32, 3}, String, Dict{Union{AbstractString, Symbol}, Any}},
-    ClimaAnalysis.Var.OutputVar{Vector, Array{Float32, 3}, String, Dict{Union{AbstractString, Symbol}, Any}}
-}
-
-const OutputVar4D = Union{
-    ClimaAnalysis.Var.OutputVar{Vector{Float64}, Array{Float64, 4}, String, Dict{Union{AbstractString, Symbol}, Any}},
-    ClimaAnalysis.Var.OutputVar{Vector{Float32}, Array{Float32, 4}, String, Dict{Union{AbstractString, Symbol}, Any}},
-    ClimaAnalysis.Var.OutputVar{Vector, Array{Float32, 4}, String, Dict{Union{AbstractString, Symbol}, Any}}
-}
-
-const OutputVarAny = Union{OutputVar3D, OutputVar4D}
-
-# Calculate profile limits from profile data with padding
-function get_profile_limits(profile_data; padding_fraction = 0.05)
-    profile_min = minimum(profile_data)
-    profile_max = maximum(profile_data)
-    # Add some padding (5% on each side by default)
-    padding = (profile_max - profile_min) * padding_fraction
-
-    # Handle case where all data is the same (padding would be 0)
-    if profile_min == profile_max
-        # Add a fixed buffer around the value
-        center = profile_min
-        buffer = abs(center) * 0.1 + 0.1  # 10% of value or 0.1, whichever is larger
-        return (center - buffer, center + buffer)
-    end
-
-    return (profile_min - padding, profile_max + padding)
-end
-
-# Calculate profile limits across all times at a given location
-function get_profile_limits_all_times(var::OutputVar4D, lon, lat; padding_fraction = 0.05)
-    z_dim = get_height_dim_name(var)
-    # Slice at location only (keep all times and heights)
-    var_profile_all_times = ClimaAnalysis.slice(var, lon = lon, lat = lat)
-    # Get min/max across all the data
-    profile_min = minimum(var_profile_all_times.data)
-    profile_max = maximum(var_profile_all_times.data)
-    # Add padding
-    padding = (profile_max - profile_min) * padding_fraction
-
-    # Handle case where all data is the same (padding would be 0)
-    if profile_min == profile_max
-        # Add a fixed buffer around the value
-        center = profile_min
-        buffer = abs(center) * 0.1 + 0.1  # 10% of value or 0.1, whichever is larger
-        return (center - buffer, center + buffer)
-    end
-
-    return (profile_min - padding, profile_max + padding)
-end
-
 # AppState struct to bundle all related observables and data
 mutable struct AppState
     # Data
     simdir::Any
     var::Observable
+    obs_bundle::Any  # ObsBundle from benchmark.jl
     dates_array::Vector
     heights::Vector{Float64}
     times::Any
 
-    # Observables for main figure
+    # Aggregation
+    aggregation_level::Observable  # Symbol: :native, :seasonal, :annual
+    sim_agg::Observable  # Aggregated sim OutputVar (or same as var if :native)
+    obs_agg::Observable  # Aggregated obs OutputVar or nothing
+
+    # Observables for main figure (2D map)
     var_sliced::Observable
     limits::Observable
     title::Observable
+
+    # Observables for bias figure
+    show_bias::Observable
+    bias_sliced::Observable
+    bias_limits::Observable
+    bias_title::Observable
+
+    # Observables for metrics table
+    metrics::Observable
 
     # Observables for profile
     lon_profile::Observable
@@ -90,52 +50,40 @@ mutable struct AppState
     time_value_text::Observable
     height_value_text::Observable
     speed_value_text::Observable
-    quantiles_value_text::Observable
     dark_mode::Observable
-    fig_bg_color::Observable
     show_height::Observable
-    transparency_gradient::Observable
-    transparency_direction::Observable
-    transparency_color::Observable
-    transparency_quantiles::Observable
+    is_playing::Observable  # to gate expensive updates during animation
 
     # Axes and visual elements
     ax::Any
-    ax_3d::Any
+    ax_bias::Any
     ax_profile::Any
     ax_timeseries::Any
     profile_lines::Any
     profile_hlines::Any
     timeseries_lines::Any
     coastlines_plot::Any
-    coastlines_plot_3d::Any
+    coastlines_plot_bias::Any
     colorbar::Any
-    colorbar_3d::Any
+    colorbar_bias::Any
     colorbar_label::Observable
-    colorbar_label_3d::Observable
+    colorbar_label_bias::Observable
     profile_box::Any
     surface_plot_colormap::Any
-    surface_plot_rgba::Any
-    surface_plot_3d_colormap::Any
-    surface_plot_3d_rgba::Any
-    rgba_colors::Observable
-    rgba_colors_3d::Observable
+    surface_plot_bias::Any
     earth_surface::Any
-    earth_surface_3d::Any
     earth_img::Any
     lon::Vector{Float64}
     lat::Vector{Float64}
 
-    # Figures for background color updates
+    # Figures
     fig::Any
-    fig_3d::Any
+    fig_bias::Any
     fig_profile::Any
     fig_timeseries::Any
 
-    # Other
+    # Misc
     n_ticks::Int
-
-    # Flag to prevent recursive updates
     updating::Bool
 end
 
@@ -153,176 +101,105 @@ function get_height_dim_name(var)
     end
 end
 
-# Slice variable at time and optionally height
-function var_slice(var::OutputVar4D, time_selected; height_selected = 1)
-    # Extra safety: verify height dimension exists
-    if !has_height(var)
-        error("Variable claims to be 4D but has no height dimension")
-    end
-    z_dim = get_height_dim_name(var)
-    if z_dim == "z"
-        var_t = ClimaAnalysis.slice(
-            var,
-            time = var.dims["time"][time_selected],
-            z = var.dims["z"][height_selected]
-        )
-    else # z_reference
-        var_t = ClimaAnalysis.slice(
-            var,
-            time = var.dims["time"][time_selected],
-            z_reference = var.dims["z_reference"][height_selected]
-        )
-    end
-    return var_t.data
-end
-
-function var_slice(var::OutputVar3D, time_selected; height_selected = 1)
-    var_t = ClimaAnalysis.slice(var, time = var.dims["time"][time_selected])
-    return var_t.data
-end
-
-# Generic fallback that uses has_height check
+# Slice variable at time and optionally height. Returns the underlying 2D array.
 function var_slice(var, time_selected; height_selected = 1)
     if has_height(var)
         z_dim = get_height_dim_name(var)
-        if z_dim == "z"
-            var_t = ClimaAnalysis.slice(
-                var,
-                time = var.dims["time"][time_selected],
-                z = var.dims["z"][height_selected]
-            )
-        else # z_reference
-            var_t = ClimaAnalysis.slice(
-                var,
-                time = var.dims["time"][time_selected],
-                z_reference = var.dims["z_reference"][height_selected]
-            )
-        end
+        kwargs = Dict(
+            :time => var.dims["time"][time_selected],
+            Symbol(z_dim) => var.dims[z_dim][height_selected],
+        )
+        return ClimaAnalysis.slice(var; kwargs...).data
     else
-        var_t = ClimaAnalysis.slice(var, time = var.dims["time"][time_selected])
+        return ClimaAnalysis.slice(var; time = var.dims["time"][time_selected]).data
     end
-    return var_t.data
 end
 
-# Get color limits based on quantiles
-function get_limits(var::OutputVar4D, time_selected; height_selected = 1, low_q = 0.02, high_q = 0.98)
-    # Extra safety: verify height dimension exists
-    if !has_height(var)
-        error("Variable claims to be 4D but has no height dimension")
-    end
-    z_dim = get_height_dim_name(var)
-    if z_dim == "z"
-        var_allt = ClimaAnalysis.slice(var, z = var.dims["z"][height_selected])
-    else # z_reference
-        var_allt = ClimaAnalysis.slice(var, z_reference = var.dims["z_reference"][height_selected])
-    end
-    data = filter(!isnan, vec(var_allt.data))
-    lim_low = Statistics.quantile(data, low_q)
-    lim_high = Statistics.quantile(data, high_q)
-
-    # Handle case where limits are identical (constant data)
-    if lim_low == lim_high
-        center = lim_low
-        buffer = abs(center) * 0.1 + 0.1
-        return (center - buffer, center + buffer)
-    end
-
-    return (lim_low, lim_high)
-end
-
-function get_limits(var::OutputVar3D, time_selected; height_selected = 1, low_q = 0.02, high_q = 0.98)
-    var_allt = ClimaAnalysis.slice(var)
-    data = filter(!isnan, vec(var_allt.data))
-    lim_low = Statistics.quantile(data, low_q)
-    lim_high = Statistics.quantile(data, high_q)
-
-    # Handle case where limits are identical (constant data)
-    if lim_low == lim_high
-        center = lim_low
-        buffer = abs(center) * 0.1 + 0.1
-        return (center - buffer, center + buffer)
-    end
-
-    return (lim_low, lim_high)
-end
-
-# Generic fallback
+# Get color limits based on quantiles (across all times at selected height).
 function get_limits(var, time_selected; height_selected = 1, low_q = 0.02, high_q = 0.98)
     if has_height(var)
         z_dim = get_height_dim_name(var)
-        if z_dim == "z"
-            var_allt = ClimaAnalysis.slice(var, z = var.dims["z"][height_selected])
-        else # z_reference
-            var_allt = ClimaAnalysis.slice(var, z_reference = var.dims["z_reference"][height_selected])
-        end
+        var_allt = ClimaAnalysis.slice(var; Symbol(z_dim) => var.dims[z_dim][height_selected])
     else
-        var_allt = ClimaAnalysis.slice(var)
+        var_allt = var  # 3D var, all times already
     end
     data = filter(!isnan, vec(var_allt.data))
+    isempty(data) && return (0.0, 1.0)
     lim_low = Statistics.quantile(data, low_q)
     lim_high = Statistics.quantile(data, high_q)
-
-    # Handle case where limits are identical (constant data)
     if lim_low == lim_high
         center = lim_low
         buffer = abs(center) * 0.1 + 0.1
         return (center - buffer, center + buffer)
     end
-
     return (lim_low, lim_high)
 end
 
+# Symmetric quantile-based limits around 0 for diverging colorbars (bias maps).
+function get_bias_limits(bias_var; q = 0.98)
+    isnothing(bias_var) && return (-1.0, 1.0)
+    data = filter(!isnan, vec(bias_var.data))
+    isempty(data) && return (-1.0, 1.0)
+    lim = Statistics.quantile(abs.(data), q)
+    lim == 0 && return (-1.0, 1.0)
+    return (-lim, lim)
+end
+
+# Calculate profile limits from profile data with padding
+function get_profile_limits(profile_data; padding_fraction = 0.05)
+    profile_min = minimum(profile_data)
+    profile_max = maximum(profile_data)
+    padding = (profile_max - profile_min) * padding_fraction
+    if profile_min == profile_max
+        center = profile_min
+        buffer = abs(center) * 0.1 + 0.1
+        return (center - buffer, center + buffer)
+    end
+    return (profile_min - padding, profile_max + padding)
+end
+
+# Profile limits across all times at a given location (stable y-range for animation)
+function get_profile_limits_all_times(var, lon, lat; padding_fraction = 0.05)
+    var_profile_all_times = ClimaAnalysis.slice(var; lon = lon, lat = lat)
+    profile_min = minimum(var_profile_all_times.data)
+    profile_max = maximum(var_profile_all_times.data)
+    padding = (profile_max - profile_min) * padding_fraction
+    if profile_min == profile_max
+        center = profile_min
+        buffer = abs(center) * 0.1 + 0.1
+        return (center - buffer, center + buffer)
+    end
+    return (profile_min - padding, profile_max + padding)
+end
+
 # Get vertical profile at location
-function get_profile(var::OutputVar4D, lon, lat, time_selected)
-    z_dim = get_height_dim_name(var)
+function get_profile(var, lon, lat, time_selected)
     var_profile = ClimaAnalysis.slice(
-        var,
-        lon = lon,
-        lat = lat,
-        time = var.dims["time"][time_selected]
+        var;
+        lon = lon, lat = lat, time = var.dims["time"][time_selected],
     )
     return var_profile.data
 end
 
 # Get time series at location (and optionally height)
-function get_timeseries(var::OutputVar4D, lon, lat; height_selected = 1)
-    z_dim = get_height_dim_name(var)
-    if z_dim == "z"
-        var_ts = ClimaAnalysis.slice(
-            var,
-            lon = lon,
-            lat = lat,
-            z = var.dims["z"][height_selected]
-        )
-    else # z_reference
-        var_ts = ClimaAnalysis.slice(
-            var,
-            lon = lon,
-            lat = lat,
-            z_reference = var.dims["z_reference"][height_selected]
-        )
+function get_timeseries(var, lon, lat; height_selected = 1)
+    if has_height(var)
+        z_dim = get_height_dim_name(var)
+        kwargs = Dict(:lon => lon, :lat => lat, Symbol(z_dim) => var.dims[z_dim][height_selected])
+        return ClimaAnalysis.slice(var; kwargs...).data
+    else
+        return ClimaAnalysis.slice(var; lon = lon, lat = lat).data
     end
-    return var_ts.data
-end
-
-function get_timeseries(var::OutputVar3D, lon, lat; height_selected = 1)
-    var_ts = ClimaAnalysis.slice(
-        var,
-        lon = lon,
-        lat = lat
-    )
-    return var_ts.data
 end
 
 # Title update functions
 function update_title(state::AppState, time_idx)
     var = state.var[]
-    base_title = string(
+    state.title[] = string(
         ClimaAnalysis.long_name(var), "\n[",
         ClimaAnalysis.units(var), "]\n",
-        Dates.format(ClimaAnalysis.dates(var)[time_idx], "U yyyy")
+        Dates.format(state.dates_array[time_idx], "U yyyy"),
     )
-    state.title[] = base_title
 end
 
 function update_title_with_height(state::AppState, time_idx, height_value)
@@ -330,17 +207,16 @@ function update_title_with_height(state::AppState, time_idx, height_value)
     state.title[] = string(
         ClimaAnalysis.long_name(var), "\n[",
         ClimaAnalysis.units(var), "]\n",
-        Dates.format(ClimaAnalysis.dates(var)[time_idx], "U yyyy"), "\n",
-        "Height: ", round(height_value, digits=1), " [m]"
+        Dates.format(state.dates_array[time_idx], "U yyyy"), "\n",
+        "Height: ", round(height_value, digits = 1), " [m]",
     )
 end
 
-# Create formatted title strings for profile and timeseries
 function profile_title_string(var, dates_array, time_idx, lon_val, lat_val)
     return string(
         ClimaAnalysis.short_name(var), " - Vertical Profile\n",
         Dates.format(dates_array[time_idx], "U yyyy"), ", ",
-        "Lon: ", round(lon_val, digits=2), "°, Lat: ", round(lat_val, digits=2), "°"
+        "Lon: ", round(lon_val, digits = 2), "°, Lat: ", round(lat_val, digits = 2), "°",
     )
 end
 
@@ -348,19 +224,27 @@ function timeseries_title_string(var, heights, height_idx, lon_val, lat_val)
     if has_height(var)
         return string(
             ClimaAnalysis.short_name(var), " - Time Series\n",
-            "Height: ", round(heights[height_idx], digits=1), " m, ",
-            "Lon: ", round(lon_val, digits=2), "°, Lat: ", round(lat_val, digits=2), "°"
+            "Height: ", round(heights[height_idx], digits = 1), " m, ",
+            "Lon: ", round(lon_val, digits = 2), "°, Lat: ", round(lat_val, digits = 2), "°",
         )
     else
         return string(
             ClimaAnalysis.short_name(var), " - Time Series\n",
-            "Lon: ", round(lon_val, digits=2), "°, Lat: ", round(lat_val, digits=2), "°"
+            "Lon: ", round(lon_val, digits = 2), "°, Lat: ", round(lat_val, digits = 2), "°",
         )
     end
 end
 
+function bias_title_string(var, dates_array, time_idx)
+    return string(
+        "Sim − Obs: ", ClimaAnalysis.short_name(var), " [",
+        ClimaAnalysis.units(var), "]\n",
+        Dates.format(dates_array[time_idx], "U yyyy"),
+    )
+end
+
 # Print startup message
-function print_startup_message(port=8080)
+function print_startup_message(port = 8080)
     println("\n" * "="^60)
     println("\e[1;36m ClimaViz web app served!\e[0m")
     println("\e[1;32m→ Visit: \e[1;4;32mhttp://localhost:$port/\e[0m")
