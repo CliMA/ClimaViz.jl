@@ -18,6 +18,6 @@ include("paramviz.jl")
 
 export dashboard
 export Drivers, Parameters, Constants, Inputs, Output
-export parameterisation, webapp, param_dashboard
+export parameterisation, webapp, param_dashboard, dashboard_paramviz
 
 end # module ClimaViz

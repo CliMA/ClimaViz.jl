@@ -71,10 +71,10 @@ function webapp(parameterisation, inputs, output)
     output_range_unitconverted = ustrip.(uconvert.(output.unit[2], (output.range)output.unit[1]))
     n_drivers = 2  
     n_parameters = length(inputs.parameters.names)
-    drivers_range = [round.(range(drivers_ranges_unitconverted[i][1], drivers_ranges_unitconverted[i][2], 12), sigdigits = 2) for i in 1:n_drivers]
-    parameters_range = [round.(range(parameters_ranges_unitconverted[i][1], parameters_ranges_unitconverted[i][2], 12), sigdigits = 2) for i in 1:n_parameters]
-    drivers_sliders = [Bonito.TailwindDashboard.Slider(inputs.drivers.names[i], drivers_range[i], value = drivers_range[i][6]) for i in 1:n_drivers] |> Tuple
-    parameters_sliders = [Bonito.TailwindDashboard.Slider(inputs.parameters.names[i], parameters_range[i], value = parameters_range[i][6]) for i in 1:n_parameters] |> Tuple
+    drivers_range = [round.(range(drivers_ranges_unitconverted[i][1], drivers_ranges_unitconverted[i][2], 120), sigdigits = 3) for i in 1:n_drivers]
+    parameters_range = [round.(range(parameters_ranges_unitconverted[i][1], parameters_ranges_unitconverted[i][2], 120), sigdigits = 3) for i in 1:n_parameters]
+    drivers_sliders = [Bonito.TailwindDashboard.Slider(inputs.drivers.names[i], drivers_range[i], value = drivers_range[i][60]) for i in 1:n_drivers] |> Tuple
+    parameters_sliders = [Bonito.TailwindDashboard.Slider(inputs.parameters.names[i], parameters_range[i], value = parameters_range[i][60]) for i in 1:n_parameters] |> Tuple
     fig, out = param_dashboard(parameterisation, inputs, drivers_sliders, parameters_sliders, output)
     output_value = DOM.div(output.name, " = ", @lift(round($(out), sigdigits = 2)); style="font-size: 20px; font-weight: bold")
     drivers_label = DOM.div("Drivers:"; style="font-size: 16px; font-weight: bold")

@@ -60,6 +60,23 @@ In animations/clouds, you will find code to generate an animation of clouds from
   <img src="https://github.com/user-attachments/assets/778b0c14-a5d7-4907-82db-6d1f8a0c5b07" alt="animation (1)">
 </p>
 
+## Launching a ParamViz dashboard
+
+To launch a built-in parameterisation dashboard (e.g. the DAMM heterotrophic
+respiration model) locally:
+
+```julia
+using ClimaViz
+using Bonito
+using Unitful, UnitfulMoles
+
+dashboard_paramviz("damm_model")
+
+wait() # keep the server alive when running as a script
+```
+
+Then open http://127.0.0.1:9384 in your browser.
+
 [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
 [docs-stable-url]: https://CliMA.github.io/ClimaViz.jl/dev/
 
