@@ -135,8 +135,11 @@ function create_profile_figure(
     return fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs, profile_box
 end
 
-# Time series figure
-function create_timeseries_figure(var, dates_array, timeseries, timeseries_title, time_selected, bg_color)
+# Time series figure (with optional observation overlay)
+function create_timeseries_figure(
+    var, dates_array, timeseries, timeseries_obs, show_obs_line,
+    timeseries_title, time_selected, bg_color,
+)
     fig_timeseries = Figure(size = (800, 600), backgroundcolor = bg_color, figure_padding = 0)
     timeseries_ylabel = Observable(string(
         ClimaAnalysis.short_name(var[]), " [", ClimaAnalysis.units(var[]), "]",
@@ -154,10 +157,22 @@ function create_timeseries_figure(var, dates_array, timeseries, timeseries_title
     deactivate_interaction!(ax_timeseries, :scrollzoom)
 
     time_indices = 1:length(dates_array)
-    timeseries_lines = lines!(ax_timeseries, time_indices, timeseries; color = :black, linewidth = 2)
+    timeseries_lines = lines!(
+        ax_timeseries, time_indices, timeseries;
+        color = :black, linewidth = 2, label = "model",
+    )
+    timeseries_obs_lines = lines!(
+        ax_timeseries, time_indices, timeseries_obs;
+        color = :orange, linewidth = 2, label = "obs", visible = show_obs_line,
+    )
 
     current_time_index = Observable(time_selected[])
     vlines!(ax_timeseries, current_time_index; color = (:grey, 0.7), linewidth = 2)
+
+    axislegend(
+        ax_timeseries;
+        position = :rt, framevisible = false, labelsize = 12, padding = (4, 4, 2, 2),
+    )
 
     n_ticks = min(10, length(dates_array))
     tick_indices = round.(Int, range(1, length(dates_array), length = n_ticks))
@@ -166,5 +181,6 @@ function create_timeseries_figure(var, dates_array, timeseries, timeseries_title
 
     autolimits!(ax_timeseries)
 
-    return fig_timeseries, ax_timeseries, timeseries_ylabel, current_time_index, n_ticks, timeseries_lines
+    return fig_timeseries, ax_timeseries, timeseries_ylabel, current_time_index, n_ticks,
+        timeseries_lines, timeseries_obs_lines
 end

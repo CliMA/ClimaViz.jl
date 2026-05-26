@@ -133,7 +133,7 @@ function dashboard(path; HPC = false, obs = default_era5_obs())
 
         # Text labels
         value_style = Bonito.Styles("font-size" => "0.9rem", "color" => "white")
-        time_value_text = Observable(Dates.format(dates_array[time_selected[]], "u yyyy"))
+        time_value_text = Observable(format_date_for_level(dates_array[time_selected[]], aggregation_level[]))
         time_value_label = Bonito.DOM.h1(time_value_text; style = value_style)
 
         height_value_text = Observable(has_height(initial_var) ? string(round(heights[height_selected[]], digits = 1), " m") : "N/A")
@@ -149,10 +149,15 @@ function dashboard(path; HPC = false, obs = default_era5_obs())
         # Bias observables
         bias_sliced = Observable(fill(NaN, length(lon), length(lat)))
         bias_limits = Observable((-1.0, 1.0))
-        bias_title = Observable(show_bias[] ? bias_title_string(initial_var, dates_array, time_selected[]) : "no observation available")
+        bias_title = Observable(show_bias[] ? bias_title_string(initial_var, dates_array, time_selected[], aggregation_level[]) : "no observation available")
 
-        # Metrics observable
+        # Metrics observable + scope dropdown selection
         metrics = Observable(MetricsTable(ClimaAnalysis.units(initial_var)))
+        metrics_scope = Observable(:all_time)
+
+        # Loading bar state
+        is_loading = Observable(false)
+        loading_status = Observable("")
 
         # Profile / location
         lon_profile = Observable(-118.25)
@@ -169,8 +174,10 @@ function dashboard(path; HPC = false, obs = default_era5_obs())
         end
 
         timeseries = Observable(get_timeseries(initial_var, lon_profile[], lat_profile[]; height_selected = height_selected[]))
+        timeseries_obs = Observable(get_obs_timeseries(initial_obs_agg, lon_profile[], lat_profile[], length(timeseries[])))
+        show_obs_line = Observable(!isnothing(initial_obs_agg))
 
-        profile_title = Observable(profile_title_string(initial_var, dates_array, time_selected[], lon_profile[], lat_profile[]))
+        profile_title = Observable(profile_title_string(initial_var, dates_array, time_selected[], lon_profile[], lat_profile[], aggregation_level[]))
         timeseries_title = Observable(timeseries_title_string(initial_var, heights, height_selected[], lon_profile[], lat_profile[]))
 
         # Earth image (still used as background fallback in main figure)
@@ -195,29 +202,37 @@ function dashboard(path; HPC = false, obs = default_era5_obs())
             setproperty!(ax_profile, prop, initial_has_height)
         end
 
-        fig_timeseries, ax_timeseries, timeseries_ylabel, current_time_index, n_ticks, timeseries_lines =
-            create_timeseries_figure(var, dates_array, timeseries, timeseries_title, time_selected, :black)
+        fig_timeseries, ax_timeseries, timeseries_ylabel, current_time_index, n_ticks,
+            timeseries_lines, timeseries_obs_lines =
+            create_timeseries_figure(
+                var, dates_array, timeseries, timeseries_obs, show_obs_line,
+                timeseries_title, time_selected, :black,
+            )
+
+        bias_limits_cache = Dict{Tuple{String, Symbol}, Tuple{Float64, Float64}}()
+        obs_resampled_cache = Dict{Tuple{String, Symbol}, Any}()
 
         state = AppState(
             simdir, var, obs_bundle, dates_array, collect(heights), times,
             aggregation_level, sim_agg, obs_agg,
             var_sliced, limits, title,
             show_bias, bias_sliced, bias_limits, bias_title,
-            metrics,
+            metrics, metrics_scope,
             lon_profile, lat_profile, profile, profile_limits, current_height, profile_title, profile_xlabel,
             heights_obs,
-            timeseries, timeseries_title, timeseries_ylabel, current_time_index,
+            timeseries, timeseries_obs, show_obs_line, timeseries_title, timeseries_ylabel, current_time_index,
             time_selected, height_selected, speed_selected,
             time_value_text, height_value_text, speed_value_text,
-            dark_mode, show_height, is_playing,
+            dark_mode, show_height, is_playing, is_loading, loading_status,
             ax, ax_bias, ax_profile, ax_timeseries,
-            profile_lines, profile_hlines, timeseries_lines,
+            profile_lines, profile_hlines, timeseries_lines, timeseries_obs_lines,
             coastlines_plot, coastlines_plot_bias,
             cbar, cbar_bias, colorbar_label, colorbar_label_bias,
             profile_box, surface_plot_colormap, surface_plot_bias,
             earth_surface, earth_img,
             lon, lat,
             fig, fig_bias, fig_profile, fig_timeseries,
+            bias_limits_cache, obs_resampled_cache,
             n_ticks, false,
         )
 
@@ -283,9 +298,10 @@ function dashboard(path; HPC = false, obs = default_era5_obs())
             var_menu, reduction_menu, period_menu, aggregation_menu,
             time_slider, height_slider, play_button, speed_slider,
             fig, fig_bias, fig_profile, fig_timeseries,
-            show_height, show_bias, metrics,
+            show_height, show_bias, metrics, metrics_scope,
             time_value_label, height_value_label, speed_value_label,
             dark_mode_checkbox,
+            is_loading, loading_status,
         )
     end
 

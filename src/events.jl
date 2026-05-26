@@ -16,10 +16,11 @@ function setup_mouse_click_handler(fig, state::AppState)
                 xlims!(state.ax_profile, state.profile_limits[])
             end
 
-            state.profile_title[] = profile_title_string(state.var[], state.dates_array, state.time_selected[], state.lon_profile[], state.lat_profile[])
+            state.profile_title[] = profile_title_string(state.var[], state.dates_array, state.time_selected[], state.lon_profile[], state.lat_profile[], state.aggregation_level[])
             state.timeseries_title[] = timeseries_title_string(state.var[], state.heights, state.height_selected[], state.lon_profile[], state.lat_profile[])
 
             state.timeseries[] = get_timeseries(state.sim_agg[], state.lon_profile[], state.lat_profile[]; height_selected = state.height_selected[])
+            state.timeseries_obs[] = get_obs_timeseries(state.obs_agg[], state.lon_profile[], state.lat_profile[], length(state.timeseries[]))
             autolimits!(state.ax_timeseries)
         end
     end
@@ -106,6 +107,13 @@ end
 
 # Update everything when the active variable changes
 function update_for_new_variable(state::AppState, new_var, heights_new, time_slider)
+    state.is_loading[] = true
+    state.loading_status[] = string("Loading ", ClimaAnalysis.short_name(new_var), "…")
+
+    # New variable invalidates any cached resampled obs / bias limits.
+    empty!(state.bias_limits_cache)
+    empty!(state.obs_resampled_cache)
+
     state.var[] = new_var
     needs_height_update = has_height(new_var)
 
@@ -133,6 +141,7 @@ function update_for_new_variable(state::AppState, new_var, heights_new, time_sli
     obs_agg = aggregate_obs(obs, new_var, state.aggregation_level[])
     state.obs_agg[] = obs_agg
     state.show_bias[] = !isnothing(obs_agg) && _has_lonlat_only(sim_agg)
+    state.show_obs_line[] = !isnothing(obs_agg)
 
     state.var_sliced[] = var_slice(sim_agg, state.time_selected[]; height_selected = state.height_selected[])
     state.limits[] = get_limits(sim_agg, state.time_selected[]; height_selected = state.height_selected[])
@@ -147,11 +156,12 @@ function update_for_new_variable(state::AppState, new_var, heights_new, time_sli
     state.timeseries_ylabel[] = string(ClimaAnalysis.short_name(state.var[]), " [", ClimaAnalysis.units(state.var[]), "]")
 
     tick_indices = round.(Int, range(1, length(state.dates_array), length = min(state.n_ticks, length(state.dates_array))))
-    tick_labels = [Dates.format(state.dates_array[i], "u yyyy") for i in tick_indices]
+    tick_labels = [format_date_short(state.dates_array[i], state.aggregation_level[]) for i in tick_indices]
     state.ax_timeseries.xticks = (tick_indices, tick_labels)
 
     state.timeseries_title[] = timeseries_title_string(state.var[], state.heights, state.height_selected[], state.lon_profile[], state.lat_profile[])
-    state.profile_title[] = profile_title_string(state.var[], state.dates_array, state.time_selected[], state.lon_profile[], state.lat_profile[])
+    state.profile_title[] = profile_title_string(state.var[], state.dates_array, state.time_selected[], state.lon_profile[], state.lat_profile[], state.aggregation_level[])
+    state.time_value_text[] = format_date_for_level(state.dates_array[state.time_selected[]], state.aggregation_level[])
 
     state.height_value_text[] = has_height(state.var[]) ? string(round(state.heights[state.height_selected[]], digits = 1), " m") : "N/A"
 
@@ -166,6 +176,7 @@ function update_for_new_variable(state::AppState, new_var, heights_new, time_sli
     end
 
     state.timeseries[] = get_timeseries(sim_agg, state.lon_profile[], state.lat_profile[]; height_selected = state.height_selected[])
+    state.timeseries_obs[] = get_obs_timeseries(obs_agg, state.lon_profile[], state.lat_profile[], length(state.timeseries[]))
     autolimits!(state.ax_timeseries)
 
     state.show_height[] = needs_height_update
@@ -182,10 +193,15 @@ function recompute_benchmark!(state::AppState)
         state.bias_limits[] = (-1.0, 1.0)
         state.bias_title[] = "no observation available"
         state.metrics[] = MetricsTable(ClimaAnalysis.units(state.var[]))
+        state.is_loading[] = false
+        state.loading_status[] = ""
         return
     end
     sim_agg = state.sim_agg[]
     obs_agg = state.obs_agg[]
+    var_name = ClimaAnalysis.short_name(state.var[])
+    level = state.aggregation_level[]
+    state.is_loading[] = true
     try
         sim_dates = ClimaAnalysis.dates(sim_agg)
         obs_dates = ClimaAnalysis.dates(obs_agg)
@@ -194,17 +210,47 @@ function recompute_benchmark!(state::AppState)
         obs_trunc = _select_time_indices(obs_agg, collect(1:n))
 
         t = clamp(state.time_selected[], 1, n)
+
+        # Synchronous: cheap bias slice + title, then cached limits if available.
+        state.loading_status[] = "Computing bias map…"
         _update_bias_slice!(state, sim_trunc, obs_trunc, t)
+        state.bias_title[] = bias_title_string(state.var[], state.dates_array, state.time_selected[], level)
 
-        # Stable colorbar: limits from the time-mean bias map (one resample).
-        sim_tmean = ClimaAnalysis.average_time(sim_trunc)
-        obs_tmean = ClimaAnalysis.average_time(obs_trunc)
-        obs_tmean_re = ClimaAnalysis.resampled_as(obs_tmean, sim_tmean)
-        state.bias_limits[] = _symmetric_limits(filter(!isnan, vec(sim_tmean.data .- obs_tmean_re.data)))
+        cache_key = (var_name, level)
+        if haskey(state.bias_limits_cache, cache_key)
+            state.bias_limits[] = state.bias_limits_cache[cache_key]
+            limits_ready = true
+        else
+            limits_ready = false
+        end
 
-        state.bias_title[] = bias_title_string(state.var[], state.dates_array, state.time_selected[])
+        # Async: stable colorbar limits (full time-mean) + all metrics.
+        @async _async_benchmark!(state, sim_trunc, obs_trunc, t, cache_key, limits_ready)
+    catch e
+        @debug "benchmark computation failed" exception = (e, catch_backtrace())
+        state.show_bias[] = false
+        state.bias_sliced[] = fill(NaN, length(state.lon), length(state.lat))
+        state.bias_limits[] = (-1.0, 1.0)
+        state.bias_title[] = "observation unavailable"
+        state.metrics[] = MetricsTable(ClimaAnalysis.units(state.var[]))
+        state.is_loading[] = false
+        state.loading_status[] = ""
+    end
+end
 
-        # Fast pass: only :all_time + :selected, no seasonal diagnostics yet.
+function _async_benchmark!(state::AppState, sim_trunc, obs_trunc, t, cache_key, limits_ready)
+    try
+        if !limits_ready
+            state.loading_status[] = "Computing bias limits…"
+            sim_tmean = ClimaAnalysis.average_time(sim_trunc)
+            obs_tmean = ClimaAnalysis.average_time(obs_trunc)
+            obs_tmean_re = ClimaAnalysis.resampled_as(obs_tmean, sim_tmean)
+            lims = _symmetric_limits(filter(!isnan, vec(sim_tmean.data .- obs_tmean_re.data)))
+            state.bias_limits_cache[cache_key] = lims
+            state.bias_limits[] = lims
+        end
+
+        state.loading_status[] = "Computing metrics…"
         fast = compute_metrics(
             sim_trunc, obs_trunc;
             selected_idx = t,
@@ -213,37 +259,46 @@ function recompute_benchmark!(state::AppState)
         )
         state.metrics[] = fast
 
-        # Background pass: fill in DJF/MAM/JJA/SON + amplitude/phase.
-        @async _fill_seasonal_metrics!(state, sim_trunc, obs_trunc, t)
-    catch e
-        @debug "benchmark computation failed" exception = (e, catch_backtrace())
-        state.show_bias[] = false
-        state.bias_sliced[] = fill(NaN, length(state.lon), length(state.lat))
-        state.bias_limits[] = (-1.0, 1.0)
-        state.bias_title[] = "observation unavailable"
-        state.metrics[] = MetricsTable(ClimaAnalysis.units(state.var[]))
-    end
-end
-
-function _fill_seasonal_metrics!(state::AppState, sim_trunc, obs_trunc, selected_idx)
-    try
+        state.loading_status[] = "Computing seasonal metrics…"
         full = compute_metrics(
             sim_trunc, obs_trunc;
-            selected_idx,
+            selected_idx = t,
             scopes = METRIC_SCOPES,
             compute_seasonal_diagnostics = true,
         )
         state.metrics[] = full
     catch e
-        @debug "seasonal metrics fill failed" exception = (e, catch_backtrace())
+        @debug "async benchmark failed" exception = (e, catch_backtrace())
+    finally
+        state.is_loading[] = false
+        state.loading_status[] = ""
     end
 end
 
 function _update_bias_slice!(state::AppState, sim_var, obs_var, t)
     sim_t = ClimaAnalysis.slice(sim_var; time = sim_var.dims["time"][t])
+    obs_resampled_slice = _get_obs_resampled_slice(state, sim_var, obs_var, t, sim_t)
+    state.bias_sliced[] = sim_t.data .- obs_resampled_slice
+end
+
+# Return obs.data resampled onto the sim grid for time index t. Cached per
+# (variable, aggregation level, time index). Falls back to direct resample on
+# any cache miss / failure.
+function _get_obs_resampled_slice(state::AppState, sim_var, obs_var, t, sim_t)
+    var_name = ClimaAnalysis.short_name(state.var[])
+    level = state.aggregation_level[]
+    base_key = (var_name, level)
+    slot = get!(state.obs_resampled_cache, base_key) do
+        Dict{Int, Array{Float64, 2}}()
+    end
+    if haskey(slot, t)
+        return slot[t]
+    end
     obs_t = ClimaAnalysis.slice(obs_var; time = obs_var.dims["time"][t])
     obs_resampled = ClimaAnalysis.resampled_as(obs_t, sim_t)
-    state.bias_sliced[] = sim_t.data .- obs_resampled.data
+    data = Array{Float64, 2}(obs_resampled.data)
+    slot[t] = data
+    return data
 end
 
 function _symmetric_limits(data; q = 0.98)
@@ -259,6 +314,11 @@ function setup_aggregation_handler(aggregation_menu, time_slider, state::AppStat
         state.updating && return
         new_level = _label_to_level(label, state.var[])
         state.aggregation_level[] = new_level
+
+        # Switching aggregation invalidates the per-(var,level) caches.
+        state.is_loading[] = true
+        state.loading_status[] = string("Aggregating to ", label, "…")
+
         sim_agg = aggregate_var(state.var[], new_level)
         state.sim_agg[] = sim_agg
         empty!(state.dates_array)
@@ -274,16 +334,26 @@ function setup_aggregation_handler(aggregation_menu, time_slider, state::AppStat
         obs_agg = aggregate_obs(obs, state.var[], new_level)
         state.obs_agg[] = obs_agg
         state.show_bias[] = !isnothing(obs_agg) && _has_lonlat_only(sim_agg)
+        state.show_obs_line[] = !isnothing(obs_agg)
 
         state.var_sliced[] = var_slice(sim_agg, state.time_selected[]; height_selected = state.height_selected[])
         state.limits[] = get_limits(sim_agg, state.time_selected[]; height_selected = state.height_selected[])
 
         tick_indices = round.(Int, range(1, length(state.dates_array), length = min(state.n_ticks, length(state.dates_array))))
-        tick_labels = [Dates.format(state.dates_array[i], "u yyyy") for i in tick_indices]
+        tick_labels = [format_date_short(state.dates_array[i], new_level) for i in tick_indices]
         state.ax_timeseries.xticks = (tick_indices, tick_labels)
         state.timeseries[] = get_timeseries(sim_agg, state.lon_profile[], state.lat_profile[]; height_selected = state.height_selected[])
-        state.time_value_text[] = Dates.format(state.dates_array[state.time_selected[]], "u yyyy")
+        state.timeseries_obs[] = get_obs_timeseries(obs_agg, state.lon_profile[], state.lat_profile[], length(state.timeseries[]))
+        state.time_value_text[] = format_date_for_level(state.dates_array[state.time_selected[]], new_level)
         autolimits!(state.ax_timeseries)
+
+        # Re-render titles with the new level's date format.
+        if has_height(state.var[])
+            update_title_with_height(state, state.time_selected[], state.heights[state.height_selected[]])
+        else
+            update_title(state, state.time_selected[])
+        end
+        state.profile_title[] = profile_title_string(state.var[], state.dates_array, state.time_selected[], state.lon_profile[], state.lat_profile[], new_level)
 
         if has_height(state.var[])
             state.profile[] = get_profile(sim_agg, state.lon_profile[], state.lat_profile[], state.time_selected[])
@@ -304,6 +374,7 @@ end
 function setup_time_handler(time_slider, state::AppState)
     on(time_slider.value) do t
         sim_agg = state.sim_agg[]
+        level = state.aggregation_level[]
         state.var_sliced[] = var_slice(sim_agg, t; height_selected = state.height_selected[])
 
         if has_height(state.var[])
@@ -313,8 +384,8 @@ function setup_time_handler(time_slider, state::AppState)
         end
 
         state.current_time_index[] = t
-        state.time_value_text[] = Dates.format(state.dates_array[t], "u yyyy")
-        state.profile_title[] = profile_title_string(state.var[], state.dates_array, t, state.lon_profile[], state.lat_profile[])
+        state.time_value_text[] = format_date_for_level(state.dates_array[t], level)
+        state.profile_title[] = profile_title_string(state.var[], state.dates_array, t, state.lon_profile[], state.lat_profile[], level)
 
         if has_height(state.var[])
             state.profile[] = get_profile(sim_agg, state.lon_profile[], state.lat_profile[], t)
@@ -322,7 +393,7 @@ function setup_time_handler(time_slider, state::AppState)
             notify(state.heights_obs)
         end
 
-        # Cheap bias map update by re-slicing the cached bias array — skip metrics during play.
+        # Cheap bias map update by re-slicing — uses the per-(var,level,t) cache.
         if state.show_bias[]
             try
                 obs_agg = state.obs_agg[]
@@ -331,10 +402,9 @@ function setup_time_handler(time_slider, state::AppState)
                 n = min(length(sim_dates), length(obs_dates))
                 if t <= n
                     sim_t = ClimaAnalysis.slice(sim_agg; time = sim_agg.dims["time"][t])
-                    obs_t = ClimaAnalysis.slice(obs_agg; time = obs_agg.dims["time"][t])
-                    obs_resampled = ClimaAnalysis.resampled_as(obs_t, sim_t)
-                    state.bias_sliced[] = sim_t.data .- obs_resampled.data
-                    state.bias_title[] = bias_title_string(state.var[], state.dates_array, t)
+                    obs_resampled_slice = _get_obs_resampled_slice(state, sim_agg, obs_agg, t, sim_t)
+                    state.bias_sliced[] = sim_t.data .- obs_resampled_slice
+                    state.bias_title[] = bias_title_string(state.var[], state.dates_array, t, level)
                 end
             catch
                 # leave bias_sliced unchanged

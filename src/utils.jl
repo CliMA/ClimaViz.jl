@@ -26,6 +26,7 @@ mutable struct AppState
 
     # Observables for metrics table
     metrics::Observable
+    metrics_scope::Observable  # Symbol: which scope column to display
 
     # Observables for profile
     lon_profile::Observable
@@ -39,6 +40,8 @@ mutable struct AppState
 
     # Observables for timeseries
     timeseries::Observable
+    timeseries_obs::Observable      # parallel obs series (NaN where missing)
+    show_obs_line::Observable       # mirrors show_bias for the obs line
     timeseries_title::Observable
     timeseries_ylabel::Observable
     current_time_index::Observable
@@ -52,7 +55,9 @@ mutable struct AppState
     speed_value_text::Observable
     dark_mode::Observable
     show_height::Observable
-    is_playing::Observable  # to gate expensive updates during animation
+    is_playing::Observable          # gates expensive updates during animation
+    is_loading::Observable          # drives the top progress bar
+    loading_status::Observable      # short status text shown next to the bar
 
     # Axes and visual elements
     ax::Any
@@ -62,6 +67,7 @@ mutable struct AppState
     profile_lines::Any
     profile_hlines::Any
     timeseries_lines::Any
+    timeseries_obs_lines::Any
     coastlines_plot::Any
     coastlines_plot_bias::Any
     colorbar::Any
@@ -81,6 +87,10 @@ mutable struct AppState
     fig_bias::Any
     fig_profile::Any
     fig_timeseries::Any
+
+    # Caches keyed by (variable short_name, aggregation level)
+    bias_limits_cache::Dict{Tuple{String, Symbol}, Tuple{Float64, Float64}}
+    obs_resampled_cache::Dict{Tuple{String, Symbol}, Any}
 
     # Misc
     n_ticks::Int
@@ -192,13 +202,69 @@ function get_timeseries(var, lon, lat; height_selected = 1)
     end
 end
 
+# Get obs time series at lon/lat; returns NaN-filled vector matching sim length if no obs.
+function get_obs_timeseries(obs_var, lon, lat, sim_length)
+    isnothing(obs_var) && return fill(NaN, sim_length)
+    data = ClimaAnalysis.slice(obs_var; lon = lon, lat = lat).data
+    n = length(data)
+    if n == sim_length
+        return collect(Float64, data)
+    elseif n < sim_length
+        out = fill(NaN, sim_length)
+        out[1:n] .= data
+        return out
+    else
+        return collect(Float64, data[1:sim_length])
+    end
+end
+
+const _MONTH_TO_SEASON = Dict(
+    12 => "DJF", 1 => "DJF", 2 => "DJF",
+    3 => "MAM", 4 => "MAM", 5 => "MAM",
+    6 => "JJA", 7 => "JJA", 8 => "JJA",
+    9 => "SON", 10 => "SON", 11 => "SON",
+)
+
+_as_datetime(d) = d isa Dates.Date ? Dates.DateTime(d) : d
+
+# Format a date for the given aggregation level (used in titles + slider value text).
+function format_date_for_level(date, level::Symbol)
+    if level === :annual
+        return string(Dates.year(date))
+    elseif level === :seasonal
+        return string(_MONTH_TO_SEASON[Dates.month(date)], " ", Dates.year(date))
+    elseif level === :daily
+        return Dates.format(date, "U d, yyyy")
+    elseif level === :hourly
+        return Dates.format(_as_datetime(date), "U d yyyy HH:00")
+    else  # :native (typically monthly) or unknown
+        return Dates.format(date, "U yyyy")
+    end
+end
+
+# Shorter variant for axis tick labels where space is tight.
+function format_date_short(date, level::Symbol)
+    if level === :annual
+        return string(Dates.year(date))
+    elseif level === :seasonal
+        yy = lpad(Dates.year(date) % 100, 2, "0")
+        return string(_MONTH_TO_SEASON[Dates.month(date)], " ", yy)
+    elseif level === :daily
+        return Dates.format(date, "u d yy")
+    elseif level === :hourly
+        return Dates.format(_as_datetime(date), "u d HH:00")
+    else
+        return Dates.format(date, "u yyyy")
+    end
+end
+
 # Title update functions
 function update_title(state::AppState, time_idx)
     var = state.var[]
     state.title[] = string(
         ClimaAnalysis.long_name(var), "\n[",
         ClimaAnalysis.units(var), "]\n",
-        Dates.format(state.dates_array[time_idx], "U yyyy"),
+        format_date_for_level(state.dates_array[time_idx], state.aggregation_level[]),
     )
 end
 
@@ -207,15 +273,15 @@ function update_title_with_height(state::AppState, time_idx, height_value)
     state.title[] = string(
         ClimaAnalysis.long_name(var), "\n[",
         ClimaAnalysis.units(var), "]\n",
-        Dates.format(state.dates_array[time_idx], "U yyyy"), "\n",
+        format_date_for_level(state.dates_array[time_idx], state.aggregation_level[]), "\n",
         "Height: ", round(height_value, digits = 1), " [m]",
     )
 end
 
-function profile_title_string(var, dates_array, time_idx, lon_val, lat_val)
+function profile_title_string(var, dates_array, time_idx, lon_val, lat_val, level::Symbol = :native)
     return string(
         ClimaAnalysis.short_name(var), " - Vertical Profile\n",
-        Dates.format(dates_array[time_idx], "U yyyy"), ", ",
+        format_date_for_level(dates_array[time_idx], level), ", ",
         "Lon: ", round(lon_val, digits = 2), "°, Lat: ", round(lat_val, digits = 2), "°",
     )
 end
@@ -235,11 +301,11 @@ function timeseries_title_string(var, heights, height_idx, lon_val, lat_val)
     end
 end
 
-function bias_title_string(var, dates_array, time_idx)
+function bias_title_string(var, dates_array, time_idx, level::Symbol = :native)
     return string(
         "Sim − Obs: ", ClimaAnalysis.short_name(var), " [",
         ClimaAnalysis.units(var), "]\n",
-        Dates.format(dates_array[time_idx], "U yyyy"),
+        format_date_for_level(dates_array[time_idx], level),
     )
 end
 

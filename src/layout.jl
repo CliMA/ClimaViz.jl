@@ -4,9 +4,10 @@ function layout(
     var_menu, reduction_menu, period_menu, aggregation_menu,
     time_slider, height_slider, play_button, speed_slider,
     fig, fig_bias, fig_profile, fig_timeseries,
-    show_height, show_bias, metrics,
+    show_height, show_bias, metrics, metrics_scope,
     time_value_label, height_value_label, speed_value_label,
     dark_mode_checkbox,
+    is_loading, loading_status,
 )
     label_style = Bonito.Styles(
         "font-size" => "0.9rem", "font-weight" => "600",
@@ -60,7 +61,14 @@ function layout(
         class = "menu-card",
     )
 
-    menu_column_layout = Bonito.Col(menu_card; height = "100vh")
+    metrics_card = Bonito.Card(
+        _metrics_panel(metrics, metrics_scope);
+        shadow_size = "0",
+        style = menu_card_style,
+        class = "menu-card metrics-card",
+    )
+
+    menu_column_layout = Bonito.Col(menu_card, metrics_card; height = "100vh")
 
     surfaces_column = Bonito.Col(
         Bonito.Card(fig; shadow_size = "0"),
@@ -70,73 +78,124 @@ function layout(
 
     charts_column = Bonito.Col(
         Bonito.Card(fig_timeseries; shadow_size = "0"),
-        Bonito.Card(fig_profile; shadow_size = "0"),
-        Bonito.Card(_metrics_card(metrics); shadow_size = "0", class = "metrics-card");
+        Bonito.Card(fig_profile; shadow_size = "0");
         height = "100vh",
     )
 
-    Bonito.Grid(
+    grid = Bonito.Grid(
         menu_column_layout, surfaces_column, charts_column;
         columns = "400px 1100px 800px",
         gap = "5px",
     )
+
+    progress_bar, status_label, css_block = _progress_indicator(is_loading, loading_status)
+    return Bonito.Col(css_block, progress_bar, status_label, grid)
 end
 
-function _metrics_card(metrics)
-    header_style = Bonito.Styles(
-        "padding" => "6px 8px", "font-weight" => "600",
-        "text-align" => "center", "border-bottom" => "1px solid #444",
-        "color" => "white",
+# Compact single-scope metrics panel with a Scope dropdown.
+function _metrics_panel(metrics, metrics_scope::Observable)
+    label_style = Bonito.Styles(
+        "font-size" => "0.85rem", "font-weight" => "600",
+        "padding" => "2px 6px", "color" => "white", "text-align" => "left",
     )
-    cell_style = Bonito.Styles(
-        "padding" => "4px 8px", "text-align" => "right",
-        "font-variant-numeric" => "tabular-nums",
-        "color" => "white",
+    value_style = Bonito.Styles(
+        "font-size" => "0.9rem", "font-variant-numeric" => "tabular-nums",
+        "padding" => "2px 6px", "color" => "white", "text-align" => "right",
+        "min-width" => "70px",
     )
-    label_cell_style = Bonito.Styles(
-        "padding" => "4px 8px", "text-align" => "left",
-        "font-weight" => "600",
-        "color" => "white",
+    row_style = Bonito.Styles(
+        "display" => "flex", "justify-content" => "space-between",
+        "align-items" => "center", "border-bottom" => "1px solid #2a2a2a",
+    )
+    title_style = Bonito.Styles(
+        "font-size" => "1rem", "font-weight" => "700",
+        "margin" => "0 0 6px 0", "text-align" => "center", "color" => "white",
+    )
+    dropdown_style = Bonito.Styles(
+        "font-size" => "0.9rem", "padding" => "4px 6px",
+        "border-radius" => "4px", "cursor" => "pointer", "min-width" => "120px",
     )
 
-    header_cells = [Bonito.DOM.th(""; style = header_style)]
-    for s in METRIC_SCOPES
-        push!(header_cells, Bonito.DOM.th(SCOPE_LABELS[s]; style = header_style))
+    scope_labels = [SCOPE_LABELS[s] for s in METRIC_SCOPES]
+    scope_dropdown = Bonito.Dropdown(scope_labels; style = dropdown_style)
+    scope_dropdown.value[] = SCOPE_LABELS[metrics_scope[]]
+    on(scope_dropdown.value) do label
+        metrics_scope[] = label_to_scope(label)
     end
-    thead = Bonito.DOM.thead(Bonito.DOM.tr(header_cells...))
 
-    rows = []
+    rows = Any[]
     for m in METRIC_ROWS
-        cells = [Bonito.DOM.td(METRIC_LABELS[m]; style = label_cell_style)]
-        for s in METRIC_SCOPES
-            cell_text = map(t -> format_cell(t, m, s), metrics)
-            push!(cells, Bonito.DOM.td(cell_text; style = cell_style))
+        value_text = map(metrics, metrics_scope) do t, scope
+            format_cell(t, m, scope)
         end
-        push!(rows, Bonito.DOM.tr(cells...))
+        push!(rows, Bonito.DOM.div(
+            Bonito.DOM.span(METRIC_LABELS[m]; style = label_style),
+            Bonito.DOM.span(value_text; style = value_style);
+            style = row_style,
+        ))
     end
+
     units_text = map(t -> isempty(t.units) ? "" : string("Units: ", t.units), metrics)
     units_caption = Bonito.DOM.div(units_text;
         style = Bonito.Styles(
-            "font-size" => "0.8rem", "color" => "#aaa",
-            "padding" => "4px 8px", "text-align" => "right",
+            "font-size" => "0.75rem", "color" => "#aaa",
+            "padding" => "4px 6px", "text-align" => "right",
         ),
     )
 
-    table_style = Bonito.Styles(
-        "border-collapse" => "collapse",
-        "width" => "100%",
-        "font-size" => "0.85rem",
+    scope_row_style = Bonito.Styles(
+        "display" => "flex", "align-items" => "center",
+        "gap" => "6px", "padding" => "0 0 6px 0",
     )
-    title = Bonito.DOM.h2(
-        "Benchmark metrics";
-        style = Bonito.Styles(
-            "font-size" => "1rem", "font-weight" => "700",
-            "margin" => "0 0 6px 0", "text-align" => "center", "color" => "white",
-        ),
+    scope_row = Bonito.DOM.div(
+        Bonito.DOM.span("Scope:"; style = label_style),
+        scope_dropdown;
+        style = scope_row_style,
     )
+
     return Bonito.DOM.div(
-        title,
-        Bonito.DOM.table(thead, Bonito.DOM.tbody(rows...); style = table_style),
+        Bonito.DOM.h2("Benchmark metrics"; style = title_style),
+        scope_row,
+        rows...,
         units_caption,
     )
+end
+
+# Top-of-dashboard progress bar (visible only when is_loading[] is true) and a
+# small status caption underneath. Animation is pure CSS so it stays smooth
+# regardless of what the main thread is doing.
+function _progress_indicator(is_loading::Observable, loading_status::Observable)
+    css_block = Bonito.DOM.style("""
+    @keyframes climaviz-loading-shimmer {
+      0%   { background-position: 100% 0; }
+      100% { background-position: -100% 0; }
+    }
+    .climaviz-progress-bar {
+      height: 4px;
+      width: 100%;
+      background: linear-gradient(90deg, transparent 0%, #2196F3 50%, transparent 100%);
+      background-size: 200% 100%;
+      animation: climaviz-loading-shimmer 1.2s linear infinite;
+    }
+    .climaviz-progress-bar-hidden {
+      height: 4px;
+      width: 100%;
+      background: transparent;
+    }
+    """)
+
+    bar_class = map(is_loading) do loading
+        loading ? "climaviz-progress-bar" : "climaviz-progress-bar-hidden"
+    end
+
+    progress_bar = Bonito.DOM.div(""; class = bar_class)
+
+    status_style = Bonito.Styles(
+        "font-size" => "0.8rem", "color" => "#9ec5fe",
+        "padding" => "2px 8px", "height" => "16px",
+        "font-family" => "system-ui, sans-serif",
+    )
+    status_label = Bonito.DOM.div(loading_status; style = status_style)
+
+    return progress_bar, status_label, css_block
 end

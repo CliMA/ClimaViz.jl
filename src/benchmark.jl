@@ -252,6 +252,10 @@ const SCOPE_LABELS = Dict(
     :DJF => "DJF", :MAM => "MAM", :JJA => "JJA", :SON => "SON",
 )
 
+const _LABEL_TO_SCOPE = Dict(v => k for (k, v) in SCOPE_LABELS)
+
+label_to_scope(label::AbstractString) = get(_LABEL_TO_SCOPE, String(label), :all_time)
+
 """
     MetricsTable
 
