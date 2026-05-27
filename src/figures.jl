@@ -37,13 +37,13 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
     ))
 
     cbar = Colorbar(
-        fig[1, 1], surface_plot_colormap;
+        fig[2, 1], surface_plot_colormap;
         vertical = false, colorrange = limits,
-        width = Relative(0.25), height = 13,
-        ticklabelsize = 16.0, label = colorbar_label, labelsize = 19.0,
-        halign = :right, valign = :bottom,
-        tellheight = false, tellwidth = false,
+        width = Relative(0.5), height = 13,
+        ticklabelsize = 14.0, label = colorbar_label, labelsize = 16.0,
+        tellheight = true, tellwidth = false,
     )
+    rowgap!(fig.layout, 4)
 
     on(var) do v
         colorbar_label[] = string(
@@ -84,13 +84,13 @@ function create_bias_figure(var, bias_sliced, bias_limits, bias_title, lon, lat,
     ))
 
     cbar = Colorbar(
-        fig[1, 1], surface_plot_bias;
+        fig[2, 1], surface_plot_bias;
         vertical = false, colorrange = bias_limits,
-        width = Relative(0.3), height = 13,
-        ticklabelsize = 16.0, label = colorbar_label, labelsize = 18.0,
-        halign = :right, valign = :bottom,
-        tellheight = false, tellwidth = false,
+        width = Relative(0.5), height = 13,
+        ticklabelsize = 14.0, label = colorbar_label, labelsize = 16.0,
+        tellheight = true, tellwidth = false,
     )
+    rowgap!(fig.layout, 4)
 
     on(var) do v
         colorbar_label[] = string("sim − obs [", ClimaAnalysis.units(v), "]")
@@ -156,7 +156,7 @@ function create_timeseries_figure(
     )
     deactivate_interaction!(ax_timeseries, :scrollzoom)
 
-    time_indices = 1:length(dates_array)
+    time_indices = map(t -> collect(1:length(t)), timeseries)
     timeseries_lines = lines!(
         ax_timeseries, time_indices, timeseries;
         color = :black, linewidth = 2, label = "model",
@@ -169,7 +169,7 @@ function create_timeseries_figure(
     current_time_index = Observable(time_selected[])
     vlines!(ax_timeseries, current_time_index; color = (:grey, 0.7), linewidth = 2)
 
-    axislegend(
+    timeseries_legend = axislegend(
         ax_timeseries;
         position = :rt, framevisible = false, labelsize = 12, padding = (4, 4, 2, 2),
     )
@@ -182,5 +182,5 @@ function create_timeseries_figure(
     autolimits!(ax_timeseries)
 
     return fig_timeseries, ax_timeseries, timeseries_ylabel, current_time_index, n_ticks,
-        timeseries_lines, timeseries_obs_lines
+        timeseries_lines, timeseries_obs_lines, timeseries_legend
 end

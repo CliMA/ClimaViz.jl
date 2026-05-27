@@ -247,7 +247,7 @@ end
 # ─── Metrics ────────────────────────────────────────────────────────────────
 
 const METRIC_ROWS = (
-    :sim_mean, :obs_mean, :bias, :rmse, :spatial_r, :amplitude_ratio, :phase_shift,
+    :sim_mean, :obs_mean, :bias, :rmse,
 )
 const METRIC_LABELS = Dict(
     :sim_mean => "Sim mean",

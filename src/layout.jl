@@ -45,8 +45,6 @@ function layout(
     menu_column = Bonito.Col(
         dark_mode_row,
         Bonito.Row(Bonito.DOM.h1("Variable: "; style = label_style), var_menu),
-        Bonito.Row(Bonito.DOM.h1("Reduction: "; style = label_style), reduction_menu),
-        Bonito.Row(Bonito.DOM.h1("Period: "; style = label_style), period_menu),
         Bonito.Row(Bonito.DOM.h1("Aggregation: "; style = label_style), aggregation_menu),
         Bonito.Row(Bonito.DOM.h1("Time: "; style = label_style), time_slider, time_value_label),
         height_row,
@@ -95,25 +93,25 @@ end
 # Compact single-scope metrics panel with a Scope dropdown.
 function _metrics_panel(metrics, metrics_scope::Observable)
     label_style = Bonito.Styles(
-        "font-size" => "0.85rem", "font-weight" => "600",
-        "padding" => "2px 6px", "color" => "white", "text-align" => "left",
+        "font-size" => "1.1rem", "font-weight" => "600",
+        "padding" => "4px 8px", "color" => "white", "text-align" => "left",
     )
     value_style = Bonito.Styles(
-        "font-size" => "0.9rem", "font-variant-numeric" => "tabular-nums",
-        "padding" => "2px 6px", "color" => "white", "text-align" => "right",
-        "min-width" => "70px",
+        "font-size" => "1.15rem", "font-variant-numeric" => "tabular-nums",
+        "padding" => "4px 8px", "color" => "white", "text-align" => "right",
+        "min-width" => "90px",
     )
     row_style = Bonito.Styles(
         "display" => "flex", "justify-content" => "space-between",
         "align-items" => "center", "border-bottom" => "1px solid #2a2a2a",
     )
     title_style = Bonito.Styles(
-        "font-size" => "1rem", "font-weight" => "700",
-        "margin" => "0 0 6px 0", "text-align" => "center", "color" => "white",
+        "font-size" => "1.3rem", "font-weight" => "700",
+        "margin" => "0 0 8px 0", "text-align" => "center", "color" => "white",
     )
     dropdown_style = Bonito.Styles(
-        "font-size" => "0.9rem", "padding" => "4px 6px",
-        "border-radius" => "4px", "cursor" => "pointer", "min-width" => "120px",
+        "font-size" => "1.05rem", "padding" => "4px 8px",
+        "border-radius" => "4px", "cursor" => "pointer", "min-width" => "140px",
     )
 
     scope_labels = [SCOPE_LABELS[s] for s in METRIC_SCOPES]
@@ -138,8 +136,8 @@ function _metrics_panel(metrics, metrics_scope::Observable)
     units_text = map(t -> isempty(t.units) ? "" : string("Units: ", t.units), metrics)
     units_caption = Bonito.DOM.div(units_text;
         style = Bonito.Styles(
-            "font-size" => "0.75rem", "color" => "#aaa",
-            "padding" => "4px 6px", "text-align" => "right",
+            "font-size" => "0.95rem", "color" => "#aaa",
+            "padding" => "6px 8px", "text-align" => "right",
         ),
     )
 

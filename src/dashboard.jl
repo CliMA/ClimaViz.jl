@@ -203,7 +203,7 @@ function dashboard(path; HPC = false, obs = default_era5_obs())
         end
 
         fig_timeseries, ax_timeseries, timeseries_ylabel, current_time_index, n_ticks,
-            timeseries_lines, timeseries_obs_lines =
+            timeseries_lines, timeseries_obs_lines, timeseries_legend =
             create_timeseries_figure(
                 var, dates_array, timeseries, timeseries_obs, show_obs_line,
                 timeseries_title, time_selected, :black,
@@ -225,7 +225,7 @@ function dashboard(path; HPC = false, obs = default_era5_obs())
             time_value_text, height_value_text, speed_value_text,
             dark_mode, show_height, is_playing, is_loading, loading_status,
             ax, ax_bias, ax_profile, ax_timeseries,
-            profile_lines, profile_hlines, timeseries_lines, timeseries_obs_lines,
+            profile_lines, profile_hlines, timeseries_lines, timeseries_obs_lines, timeseries_legend,
             coastlines_plot, coastlines_plot_bias,
             cbar, cbar_bias, colorbar_label, colorbar_label_bias,
             profile_box, surface_plot_colormap, surface_plot_bias,
@@ -290,7 +290,16 @@ function dashboard(path; HPC = false, obs = default_era5_obs())
         ax_timeseries.ylabelcolor = :white
         ax_timeseries.xticklabelcolor = :white
         ax_timeseries.yticklabelcolor = :white
+        ax_timeseries.xtickcolor = :white
+        ax_timeseries.ytickcolor = :white
+        ax_timeseries.leftspinecolor = :white
+        ax_timeseries.rightspinecolor = :white
+        ax_timeseries.topspinecolor = :white
+        ax_timeseries.bottomspinecolor = :white
+        ax_timeseries.xgridcolor = (:white, 0.2)
+        ax_timeseries.ygridcolor = (:white, 0.2)
         timeseries_lines.color = :white
+        timeseries_legend.labelcolor = :white
 
         notify(dark_mode)
 

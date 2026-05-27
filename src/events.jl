@@ -135,6 +135,7 @@ function update_for_new_variable(state::AppState, new_var, heights_new, time_sli
     if state.time_selected[] > n_times
         state.time_selected[] = n_times
     end
+    state.current_time_index[] = state.time_selected[]
 
     # Obs binding
     obs = get_obs(state.obs_bundle, ClimaAnalysis.short_name(new_var))
@@ -329,6 +330,7 @@ function setup_aggregation_handler(aggregation_menu, time_slider, state::AppStat
         if state.time_selected[] > n_times
             state.time_selected[] = n_times
         end
+        state.current_time_index[] = state.time_selected[]
 
         obs = get_obs(state.obs_bundle, ClimaAnalysis.short_name(state.var[]))
         obs_agg = aggregate_obs(obs, state.var[], new_level)
@@ -559,6 +561,15 @@ function setup_dark_mode_handler(state::AppState, session)
         state.ax_timeseries.ylabelcolor = text_color
         state.ax_timeseries.xticklabelcolor = text_color
         state.ax_timeseries.yticklabelcolor = text_color
+        state.ax_timeseries.xtickcolor = text_color
+        state.ax_timeseries.ytickcolor = text_color
+        state.ax_timeseries.leftspinecolor = text_color
+        state.ax_timeseries.rightspinecolor = text_color
+        state.ax_timeseries.topspinecolor = text_color
+        state.ax_timeseries.bottomspinecolor = text_color
+        state.ax_timeseries.xgridcolor = (text_color, 0.2)
+        state.ax_timeseries.ygridcolor = (text_color, 0.2)
         state.timeseries_lines.color = line_color
+        state.timeseries_legend.labelcolor = text_color
     end
 end
