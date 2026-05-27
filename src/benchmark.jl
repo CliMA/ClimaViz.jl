@@ -228,7 +228,20 @@ function aggregate_obs(obs, sim, level::Symbol)
         left = obs.dims["time"][i_first],
         right = obs.dims["time"][i_last],
     )
-    return aggregate_var(obs_windowed, level)
+    return aggregate_var(_align_longitude(obs_windowed, sim), level)
+end
+
+# Wrap obs longitudes into sim's convention (e.g. ERA5 [0, 360] → sim [-180, 180])
+# so that timeseries lookups by sim-clicked lon hit the right cells. `resampled_as`
+# already handles either convention, so the bias map is unaffected.
+function _align_longitude(obs, sim)
+    (ClimaAnalysis.has_longitude(obs) && ClimaAnalysis.has_longitude(sim)) || return obs
+    sim_lon = sim.dims[ClimaAnalysis.longitude_name(sim)]
+    obs_lon = obs.dims[ClimaAnalysis.longitude_name(obs)]
+    lo = minimum(sim_lon)
+    omin, omax = extrema(obs_lon)
+    omin >= lo && omax < lo + 360 && return obs
+    return ClimaAnalysis.shift_longitude(obs, lo, lo + 360)
 end
 
 # ─── Metrics ────────────────────────────────────────────────────────────────
