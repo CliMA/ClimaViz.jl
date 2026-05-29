@@ -17,7 +17,7 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
     surface_plot_colormap = surface!(
         ax, lon, lat, var_sliced;
         colorrange = limits,
-        lowclip = (:black, 0.8),
+        lowclip = (:navy, 0.9),
         highclip = (:yellow, 0.9),
         shading = NoShading,
         colormap = :thermal,

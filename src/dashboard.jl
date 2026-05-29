@@ -307,7 +307,7 @@ function dashboard(path; HPC = false, obs = default_era5_obs())
             var_menu, reduction_menu, period_menu, aggregation_menu,
             time_slider, height_slider, play_button, speed_slider,
             fig, fig_bias, fig_profile, fig_timeseries,
-            show_height, show_bias, metrics, metrics_scope,
+            show_height, show_bias, metrics, time_value_text,
             time_value_label, height_value_label, speed_value_label,
             dark_mode_checkbox,
             is_loading, loading_status,

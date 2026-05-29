@@ -105,6 +105,20 @@ function _update_aggregation_options!(aggregation_menu, new_var, state::AppState
     state.aggregation_level[] = :native
 end
 
+# Re-bind the time slider to a new length. `slider.value` is a derived
+# `map(getindex, values, index)`, so swapping `values` to a shorter vector while
+# `index` still points past the new end throws a BoundsError (this is the bug
+# that hits when the slider is at an advanced tick and the aggregation level is
+# made coarser). Clamp `index` into the new range *before* swapping `values`.
+# Returns the new (clamped) index.
+function _resize_time_slider!(time_slider, n_times)
+    n_times = max(1, n_times)
+    new_idx = clamp(time_slider.index[], 1, n_times)
+    time_slider.index[] = new_idx
+    time_slider.values[] = collect(1:n_times)
+    return new_idx
+end
+
 # Update everything when the active variable changes
 function update_for_new_variable(state::AppState, new_var, heights_new, time_slider)
     state.is_loading[] = true
@@ -129,13 +143,10 @@ function update_for_new_variable(state::AppState, new_var, heights_new, time_sli
     empty!(state.dates_array)
     append!(state.dates_array, new_dates)
 
-    # Re-bind time slider to new length, clamp time_selected
+    # Re-bind time slider to new length (clamps the index into range).
     n_times = length(sim_agg.dims["time"])
-    time_slider.values[] = collect(1:n_times)
-    if state.time_selected[] > n_times
-        state.time_selected[] = n_times
-    end
-    state.current_time_index[] = state.time_selected[]
+    new_idx = _resize_time_slider!(time_slider, n_times)
+    state.current_time_index[] = new_idx
 
     # Obs binding
     obs = get_obs(state.obs_bundle, ClimaAnalysis.short_name(new_var))
@@ -251,23 +262,17 @@ function _async_benchmark!(state::AppState, sim_trunc, obs_trunc, t, cache_key, 
             state.bias_limits[] = lims
         end
 
+        # The metrics panel only displays the :selected scope (see
+        # _metrics_panel), so compute just that — no all-time / seasonal /
+        # amplitude / phase work that would never be shown.
         state.loading_status[] = "Computing metrics…"
-        fast = compute_metrics(
+        metrics = compute_metrics(
             sim_trunc, obs_trunc;
             selected_idx = t,
-            scopes = (:all_time, :selected),
+            scopes = (:selected,),
             compute_seasonal_diagnostics = false,
         )
-        state.metrics[] = fast
-
-        state.loading_status[] = "Computing seasonal metrics…"
-        full = compute_metrics(
-            sim_trunc, obs_trunc;
-            selected_idx = t,
-            scopes = METRIC_SCOPES,
-            compute_seasonal_diagnostics = true,
-        )
-        state.metrics[] = full
+        state.metrics[] = metrics
     catch e
         @debug "async benchmark failed" exception = (e, catch_backtrace())
     finally
@@ -313,56 +318,60 @@ end
 function setup_aggregation_handler(aggregation_menu, time_slider, state::AppState)
     on(aggregation_menu.value) do label
         state.updating && return
-        new_level = _label_to_level(label, state.var[])
-        state.aggregation_level[] = new_level
+        # Guard against the time-slider handler firing mid-update (the slider
+        # resize below moves the index, and obs_agg isn't refreshed yet).
+        state.updating = true
+        try
+            new_level = _label_to_level(label, state.var[])
+            state.aggregation_level[] = new_level
 
-        # Switching aggregation invalidates the per-(var,level) caches.
-        state.is_loading[] = true
-        state.loading_status[] = string("Aggregating to ", label, "…")
+            # Switching aggregation invalidates the per-(var,level) caches.
+            state.is_loading[] = true
+            state.loading_status[] = string("Aggregating to ", label, "…")
 
-        sim_agg = aggregate_var(state.var[], new_level)
-        state.sim_agg[] = sim_agg
-        empty!(state.dates_array)
-        append!(state.dates_array, ClimaAnalysis.dates(sim_agg))
+            sim_agg = aggregate_var(state.var[], new_level)
+            state.sim_agg[] = sim_agg
+            empty!(state.dates_array)
+            append!(state.dates_array, ClimaAnalysis.dates(sim_agg))
 
-        n_times = length(sim_agg.dims["time"])
-        time_slider.values[] = collect(1:n_times)
-        if state.time_selected[] > n_times
-            state.time_selected[] = n_times
+            n_times = length(sim_agg.dims["time"])
+            new_idx = _resize_time_slider!(time_slider, n_times)
+            state.current_time_index[] = new_idx
+
+            obs = get_obs(state.obs_bundle, ClimaAnalysis.short_name(state.var[]))
+            obs_agg = aggregate_obs(obs, state.var[], new_level)
+            state.obs_agg[] = obs_agg
+            state.show_bias[] = !isnothing(obs_agg) && _has_lonlat_only(sim_agg)
+            state.show_obs_line[] = !isnothing(obs_agg)
+
+            state.var_sliced[] = var_slice(sim_agg, new_idx; height_selected = state.height_selected[])
+            state.limits[] = get_limits(sim_agg, new_idx; height_selected = state.height_selected[])
+
+            tick_indices = round.(Int, range(1, length(state.dates_array), length = min(state.n_ticks, length(state.dates_array))))
+            tick_labels = [format_date_short(state.dates_array[i], new_level) for i in tick_indices]
+            state.ax_timeseries.xticks = (tick_indices, tick_labels)
+            state.timeseries[] = get_timeseries(sim_agg, state.lon_profile[], state.lat_profile[]; height_selected = state.height_selected[])
+            state.timeseries_obs[] = get_obs_timeseries(obs_agg, state.lon_profile[], state.lat_profile[], length(state.timeseries[]))
+            state.time_value_text[] = format_date_for_level(state.dates_array[new_idx], new_level)
+            autolimits!(state.ax_timeseries)
+
+            # Re-render titles with the new level's date format.
+            if has_height(state.var[])
+                update_title_with_height(state, new_idx, state.heights[state.height_selected[]])
+            else
+                update_title(state, new_idx)
+            end
+            state.profile_title[] = profile_title_string(state.var[], state.dates_array, new_idx, state.lon_profile[], state.lat_profile[], new_level)
+
+            if has_height(state.var[])
+                state.profile[] = get_profile(sim_agg, state.lon_profile[], state.lat_profile[], new_idx)
+                notify(state.profile)
+            end
+
+            recompute_benchmark!(state)
+        finally
+            state.updating = false
         end
-        state.current_time_index[] = state.time_selected[]
-
-        obs = get_obs(state.obs_bundle, ClimaAnalysis.short_name(state.var[]))
-        obs_agg = aggregate_obs(obs, state.var[], new_level)
-        state.obs_agg[] = obs_agg
-        state.show_bias[] = !isnothing(obs_agg) && _has_lonlat_only(sim_agg)
-        state.show_obs_line[] = !isnothing(obs_agg)
-
-        state.var_sliced[] = var_slice(sim_agg, state.time_selected[]; height_selected = state.height_selected[])
-        state.limits[] = get_limits(sim_agg, state.time_selected[]; height_selected = state.height_selected[])
-
-        tick_indices = round.(Int, range(1, length(state.dates_array), length = min(state.n_ticks, length(state.dates_array))))
-        tick_labels = [format_date_short(state.dates_array[i], new_level) for i in tick_indices]
-        state.ax_timeseries.xticks = (tick_indices, tick_labels)
-        state.timeseries[] = get_timeseries(sim_agg, state.lon_profile[], state.lat_profile[]; height_selected = state.height_selected[])
-        state.timeseries_obs[] = get_obs_timeseries(obs_agg, state.lon_profile[], state.lat_profile[], length(state.timeseries[]))
-        state.time_value_text[] = format_date_for_level(state.dates_array[state.time_selected[]], new_level)
-        autolimits!(state.ax_timeseries)
-
-        # Re-render titles with the new level's date format.
-        if has_height(state.var[])
-            update_title_with_height(state, state.time_selected[], state.heights[state.height_selected[]])
-        else
-            update_title(state, state.time_selected[])
-        end
-        state.profile_title[] = profile_title_string(state.var[], state.dates_array, state.time_selected[], state.lon_profile[], state.lat_profile[], new_level)
-
-        if has_height(state.var[])
-            state.profile[] = get_profile(sim_agg, state.lon_profile[], state.lat_profile[], state.time_selected[])
-            notify(state.profile)
-        end
-
-        recompute_benchmark!(state)
     end
 end
 
@@ -375,6 +384,9 @@ end
 # ─── Time slider ───────────────────────────────────────────────────────────
 function setup_time_handler(time_slider, state::AppState)
     on(time_slider.value) do t
+        # Skip while another handler is mid-update (it resizes the slider and
+        # repaints everything itself with consistent state).
+        state.updating && return
         sim_agg = state.sim_agg[]
         level = state.aggregation_level[]
         state.var_sliced[] = var_slice(sim_agg, t; height_selected = state.height_selected[])

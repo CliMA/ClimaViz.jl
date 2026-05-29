@@ -4,7 +4,7 @@ function layout(
     var_menu, reduction_menu, period_menu, aggregation_menu,
     time_slider, height_slider, play_button, speed_slider,
     fig, fig_bias, fig_profile, fig_timeseries,
-    show_height, show_bias, metrics, metrics_scope,
+    show_height, show_bias, metrics, coverage_text,
     time_value_label, height_value_label, speed_value_label,
     dark_mode_checkbox,
     is_loading, loading_status,
@@ -60,7 +60,7 @@ function layout(
     )
 
     metrics_card = Bonito.Card(
-        _metrics_panel(metrics, metrics_scope);
+        _metrics_panel(metrics, coverage_text);
         shadow_size = "0",
         style = menu_card_style,
         class = "menu-card metrics-card",
@@ -90,8 +90,10 @@ function layout(
     return Bonito.Col(css_block, progress_bar, status_label, grid)
 end
 
-# Compact single-scope metrics panel with a Scope dropdown.
-function _metrics_panel(metrics, metrics_scope::Observable)
+# Compact metrics panel. Always reports the currently selected time frame
+# (`:selected` scope); `coverage_text` shows which period that frame covers
+# (e.g. "January 2009", "MAM 2009", "2009").
+function _metrics_panel(metrics, coverage_text)
     label_style = Bonito.Styles(
         "font-size" => "1.1rem", "font-weight" => "600",
         "padding" => "4px 8px", "color" => "white", "text-align" => "left",
@@ -107,25 +109,18 @@ function _metrics_panel(metrics, metrics_scope::Observable)
     )
     title_style = Bonito.Styles(
         "font-size" => "1.3rem", "font-weight" => "700",
-        "margin" => "0 0 8px 0", "text-align" => "center", "color" => "white",
+        "margin" => "0 0 4px 0", "text-align" => "center", "color" => "white",
     )
-    dropdown_style = Bonito.Styles(
-        "font-size" => "1.05rem", "padding" => "4px 8px",
-        "border-radius" => "4px", "cursor" => "pointer", "min-width" => "140px",
+    coverage_style = Bonito.Styles(
+        "font-size" => "1.05rem", "font-weight" => "600",
+        "margin" => "0 0 8px 0", "text-align" => "center", "color" => "#9ec5fe",
     )
 
-    scope_labels = [SCOPE_LABELS[s] for s in METRIC_SCOPES]
-    scope_dropdown = Bonito.Dropdown(scope_labels; style = dropdown_style)
-    scope_dropdown.value[] = SCOPE_LABELS[metrics_scope[]]
-    on(scope_dropdown.value) do label
-        metrics_scope[] = label_to_scope(label)
-    end
+    coverage_caption = Bonito.DOM.div(coverage_text; style = coverage_style)
 
     rows = Any[]
     for m in METRIC_ROWS
-        value_text = map(metrics, metrics_scope) do t, scope
-            format_cell(t, m, scope)
-        end
+        value_text = map(t -> format_cell(t, m, :selected), metrics)
         push!(rows, Bonito.DOM.div(
             Bonito.DOM.span(METRIC_LABELS[m]; style = label_style),
             Bonito.DOM.span(value_text; style = value_style);
@@ -141,19 +136,9 @@ function _metrics_panel(metrics, metrics_scope::Observable)
         ),
     )
 
-    scope_row_style = Bonito.Styles(
-        "display" => "flex", "align-items" => "center",
-        "gap" => "6px", "padding" => "0 0 6px 0",
-    )
-    scope_row = Bonito.DOM.div(
-        Bonito.DOM.span("Scope:"; style = label_style),
-        scope_dropdown;
-        style = scope_row_style,
-    )
-
     return Bonito.DOM.div(
         Bonito.DOM.h2("Benchmark metrics"; style = title_style),
-        scope_row,
+        coverage_caption,
         rows...,
         units_caption,
     )
