@@ -92,6 +92,16 @@ mutable struct AppState
     # Caches keyed by (variable short_name, aggregation level)
     bias_limits_cache::Dict{Tuple{String, Symbol}, Tuple{Float64, Float64}}
     obs_resampled_cache::Dict{Tuple{String, Symbol}, Any}
+    # Per-(short_name, level, time index) :selected MetricsTable, prefilled from
+    # the persistent cache so time-slider scrubbing is instant.
+    metrics_cache::Dict{Tuple{String, Symbol, Int}, Any}
+
+    # Persistent benchmark cache controller (BenchmarkCache) or nothing.
+    bench_cache::Any
+    # Active reduction / period — half of the persistent cache key (the other
+    # half, short_name + level, is read off `var` / `aggregation_level`).
+    current_reduction::String
+    current_period::String
 
     # Misc
     n_ticks::Int

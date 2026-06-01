@@ -25,14 +25,33 @@ Features:
   to obs loaders. Each loader receives the sim's start_date and returns a
   `ClimaAnalysis.OutputVar`. The default registers ERA5 monthly fluxes for
   `lhf`, `shf`, `lwu`, `swu` via the ClimaViz LazyArtifact.
+- `cache::Bool = true`: read/write the persistent benchmark cache in
+  `<path>/.climaviz_cache`. On a hit, the bias map, colorbar limits and metrics
+  for the selected variable are served from disk instead of recomputed
+  (regridding + ocean-masked RMSE/bias), which is the slow part of a variable
+  switch. Raw fields are always read lazily. Falls back to live computation on a
+  miss, so this is purely a responsiveness optimization. See
+  [`precompute_dashboard_cache`](@ref) to warm it up front.
+- `precompute::Bool = false`: before serving, run
+  [`precompute_dashboard_cache`](@ref) to warm every cacheable entry. Slow on a
+  cold cache (regridding + metrics for all variables), near-instant if already
+  warm. Useful for long-lived deployments; ignored when `cache = false`.
 
 # Example
 ```julia
 using ClimaViz
 dashboard("path/to/output/")
+
+# Warm the cache once, then everything is instant:
+precompute_dashboard_cache("path/to/output/")
+dashboard("path/to/output/")
 ```
 """
-function dashboard(path; HPC = false, obs = default_era5_obs())
+function dashboard(path; HPC = false, obs = default_era5_obs(), cache = true, precompute = false)
+    bench_cache = cache ? BenchmarkCache(path) : nothing
+    if precompute && cache
+        precompute_dashboard_cache(path; obs = obs)
+    end
     app = Bonito.App(title = "CliMA dashboard") do session
         simdir = ClimaAnalysis.SimDir(path)
         vars = collect(keys(simdir.vars))
@@ -211,6 +230,7 @@ function dashboard(path; HPC = false, obs = default_era5_obs())
 
         bias_limits_cache = Dict{Tuple{String, Symbol}, Tuple{Float64, Float64}}()
         obs_resampled_cache = Dict{Tuple{String, Symbol}, Any}()
+        metrics_cache = Dict{Tuple{String, Symbol, Int}, Any}()
 
         state = AppState(
             simdir, var, obs_bundle, dates_array, collect(heights), times,
@@ -232,7 +252,8 @@ function dashboard(path; HPC = false, obs = default_era5_obs())
             earth_surface, earth_img,
             lon, lat,
             fig, fig_bias, fig_profile, fig_timeseries,
-            bias_limits_cache, obs_resampled_cache,
+            bias_limits_cache, obs_resampled_cache, metrics_cache,
+            bench_cache, reduction_menu.value[], period_menu.value[],
             n_ticks, false,
         )
 
