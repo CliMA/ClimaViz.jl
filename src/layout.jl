@@ -1,139 +1,184 @@
 export layout
 
-function layout(var_menu, reduction_menu, period_menu, time_slider, height_slider, play_button, speed_slider,
-                fig, fig_3d, fig_profile, fig_timeseries, show_height, profile_lines, profile_hlines,
-                time_value_label, height_value_label, speed_value_label, dark_mode_checkbox, dark_mode,
-                transparency_quantiles_slider, quantiles_value_label, transparency_direction_menu, transparency_color_menu)
+function layout(
+    var_menu, reduction_menu, period_menu, aggregation_menu,
+    time_slider, height_slider, play_button, speed_slider,
+    fig, fig_bias, fig_profile, fig_timeseries,
+    show_height, show_bias, metrics, coverage_text,
+    time_value_label, height_value_label, speed_value_label,
+    dark_mode_checkbox,
+    is_loading, loading_status,
+)
     label_style = Bonito.Styles(
-        "font-size" => "0.9rem",
-        "font-weight" => "600",
+        "font-size" => "0.9rem", "font-weight" => "600",
         "margin" => "0",
-        "display" => "flex",
-        "align-items" => "center",
-        "gap" => "4px",
-        "color" => "white"  # Start with white for dark mode default
-    )
-    header_style = Bonito.Styles(
-        "font-size" => "1.1rem",
-        "text-align" => "center",
-        "font-weight" => "bold",
-        "margin-bottom" => "0.3rem"
+        "display" => "flex", "align-items" => "center", "gap" => "4px",
+        "color" => "white",
     )
 
-    # Create height row with value display
-    height_label = Bonito.DOM.h1("Height: "; style = label_style)
     height_row = Bonito.Row(
-        height_label,
-        height_slider,
-        height_value_label;
+        Bonito.DOM.h1("Height: "; style = label_style),
+        height_slider, height_value_label,
     )
 
-    # Animation control row
     animation_row = Bonito.Row(
         play_button,
         Bonito.DOM.h1("Speed: "; style = label_style),
-        speed_slider,
-        speed_value_label;
+        speed_slider, speed_value_label,
     )
 
-    # Dark mode row with improved layout
     checkbox_row_style = Bonito.Styles(
-        "display" => "flex",
-        "align-items" => "center",
-        "gap" => "8px",
-        "padding" => "4px 0",
-        "color" => "white"  # Start with white for dark mode default
+        "display" => "flex", "align-items" => "center",
+        "gap" => "8px", "padding" => "4px 0", "color" => "white",
     )
-    dark_mode_label = Bonito.DOM.span("Dark Mode: "; style = label_style)
     dark_mode_row = Bonito.DOM.div(
-        dark_mode_label,
+        Bonito.DOM.span("Dark Mode: "; style = label_style),
         dark_mode_checkbox;
-        style = checkbox_row_style
+        style = checkbox_row_style,
     )
 
-    # 3D transparency controls row (3D always uses transparent gradient mode)
-    gradient_threshold_row = Bonito.DOM.div(
-        Bonito.DOM.span("3D Gradient Threshold: "; style = label_style),
-        transparency_quantiles_slider,
-        quantiles_value_label;
-        style = checkbox_row_style
-    )
-
-    # Menu card with compact styling
-    # Start with dark mode colors (since dark mode is default)
     menu_card_style = Bonito.Styles(
-        "padding" => "8px",
-        "border-radius" => "6px",
-        "background-color" => "#1a1a1a"  # Dark grey for dark mode (default)
+        "padding" => "8px", "border-radius" => "6px",
+        "background-color" => "#1a1a1a",
     )
 
-    # Single column menu (narrower, taller)
     menu_column = Bonito.Col(
         dark_mode_row,
-        Bonito.Row(
-            Bonito.DOM.h1("Variable: "; style = label_style),
-            var_menu;
-        ),
-        Bonito.Row(
-            Bonito.DOM.h1("Reduction: "; style = label_style),
-            reduction_menu;
-        ),
-        Bonito.Row(
-            Bonito.DOM.h1("Period: "; style = label_style),
-            period_menu;
-        ),
-        gradient_threshold_row,
-        Bonito.Row(
-            Bonito.DOM.h1("3D Direction: "; style = label_style),
-            transparency_direction_menu;
-        ),
-        Bonito.Row(
-            Bonito.DOM.h1("3D Color: "; style = label_style),
-            transparency_color_menu;
-        ),
-        Bonito.Row(
-            Bonito.DOM.h1("Time: "; style = label_style),
-            time_slider,
-            time_value_label;
-        ),
+        Bonito.Row(Bonito.DOM.h1("Variable: "; style = label_style), var_menu),
+        Bonito.Row(Bonito.DOM.h1("Aggregation: "; style = label_style), aggregation_menu),
+        Bonito.Row(Bonito.DOM.h1("Time: "; style = label_style), time_slider, time_value_label),
         height_row,
         animation_row;
-        height = "auto"
+        height = "auto",
     )
 
     menu_card = Bonito.Card(
         menu_column;
         shadow_size = "0",
         style = menu_card_style,
-        class = "menu-card"
+        class = "menu-card",
     )
 
-    # Column 1: Menu card only
-    menu_column_layout = Bonito.Col(
-        menu_card;
-        height = "100vh"
+    metrics_card = Bonito.Card(
+        _metrics_panel(metrics, coverage_text);
+        shadow_size = "0",
+        style = menu_card_style,
+        class = "menu-card metrics-card",
     )
 
-    # Column 2: 2D surface (top) and 3D surface (bottom) stacked vertically
+    menu_column_layout = Bonito.Col(menu_card, metrics_card; height = "100vh")
+
     surfaces_column = Bonito.Col(
         Bonito.Card(fig; shadow_size = "0"),
-        Bonito.Card(fig_3d; shadow_size = "0");
-        height = "100vh"
+        Bonito.Card(fig_bias; shadow_size = "0");
+        height = "100vh",
     )
 
-    # Column 3: Timeseries (top) and Profile (bottom) stacked vertically
     charts_column = Bonito.Col(
         Bonito.Card(fig_timeseries; shadow_size = "0"),
         Bonito.Card(fig_profile; shadow_size = "0");
-        height = "100vh"
+        height = "100vh",
     )
 
-    # Main layout: 3 columns tightly packed (no flexible spacing)
-    Bonito.Grid(
-        menu_column_layout,
-        surfaces_column,
-        charts_column;
+    grid = Bonito.Grid(
+        menu_column_layout, surfaces_column, charts_column;
         columns = "400px 1100px 800px",
-        gap = "5px"
+        gap = "5px",
     )
+
+    progress_bar, status_label, css_block = _progress_indicator(is_loading, loading_status)
+    return Bonito.Col(css_block, progress_bar, status_label, grid)
+end
+
+# Compact metrics panel. Always reports the currently selected time frame
+# (`:selected` scope); `coverage_text` shows which period that frame covers
+# (e.g. "January 2009", "MAM 2009", "2009").
+function _metrics_panel(metrics, coverage_text)
+    label_style = Bonito.Styles(
+        "font-size" => "1.1rem", "font-weight" => "600",
+        "padding" => "4px 8px", "color" => "white", "text-align" => "left",
+    )
+    value_style = Bonito.Styles(
+        "font-size" => "1.15rem", "font-variant-numeric" => "tabular-nums",
+        "padding" => "4px 8px", "color" => "white", "text-align" => "right",
+        "min-width" => "90px",
+    )
+    row_style = Bonito.Styles(
+        "display" => "flex", "justify-content" => "space-between",
+        "align-items" => "center", "border-bottom" => "1px solid #2a2a2a",
+    )
+    title_style = Bonito.Styles(
+        "font-size" => "1.3rem", "font-weight" => "700",
+        "margin" => "0 0 4px 0", "text-align" => "center", "color" => "white",
+    )
+    coverage_style = Bonito.Styles(
+        "font-size" => "1.05rem", "font-weight" => "600",
+        "margin" => "0 0 8px 0", "text-align" => "center", "color" => "#9ec5fe",
+    )
+
+    coverage_caption = Bonito.DOM.div(coverage_text; style = coverage_style)
+
+    rows = Any[]
+    for m in METRIC_ROWS
+        value_text = map(t -> format_cell(t, m, :selected), metrics)
+        push!(rows, Bonito.DOM.div(
+            Bonito.DOM.span(METRIC_LABELS[m]; style = label_style),
+            Bonito.DOM.span(value_text; style = value_style);
+            style = row_style,
+        ))
+    end
+
+    units_text = map(t -> isempty(t.units) ? "" : string("Units: ", t.units), metrics)
+    units_caption = Bonito.DOM.div(units_text;
+        style = Bonito.Styles(
+            "font-size" => "0.95rem", "color" => "#aaa",
+            "padding" => "6px 8px", "text-align" => "right",
+        ),
+    )
+
+    return Bonito.DOM.div(
+        Bonito.DOM.h2("Benchmark metrics"; style = title_style),
+        coverage_caption,
+        rows...,
+        units_caption,
+    )
+end
+
+# Top-of-dashboard progress bar (visible only when is_loading[] is true) and a
+# small status caption underneath. Animation is pure CSS so it stays smooth
+# regardless of what the main thread is doing.
+function _progress_indicator(is_loading::Observable, loading_status::Observable)
+    css_block = Bonito.DOM.style("""
+    @keyframes climaviz-loading-shimmer {
+      0%   { background-position: 100% 0; }
+      100% { background-position: -100% 0; }
+    }
+    .climaviz-progress-bar {
+      height: 4px;
+      width: 100%;
+      background: linear-gradient(90deg, transparent 0%, #2196F3 50%, transparent 100%);
+      background-size: 200% 100%;
+      animation: climaviz-loading-shimmer 1.2s linear infinite;
+    }
+    .climaviz-progress-bar-hidden {
+      height: 4px;
+      width: 100%;
+      background: transparent;
+    }
+    """)
+
+    bar_class = map(is_loading) do loading
+        loading ? "climaviz-progress-bar" : "climaviz-progress-bar-hidden"
+    end
+
+    progress_bar = Bonito.DOM.div(""; class = bar_class)
+
+    status_style = Bonito.Styles(
+        "font-size" => "0.8rem", "color" => "#9ec5fe",
+        "padding" => "2px 8px", "height" => "16px",
+        "font-family" => "system-ui, sans-serif",
+    )
+    status_label = Bonito.DOM.div(loading_status; style = status_style)
+
+    return progress_bar, status_label, css_block
 end

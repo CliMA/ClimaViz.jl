@@ -8,6 +8,7 @@ CurrentModule = ClimaViz
 
 ```@docs
 dashboard
+precompute_dashboard_cache
 ```
 
 ## Index
