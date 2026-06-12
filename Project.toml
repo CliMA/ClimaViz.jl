@@ -27,10 +27,11 @@ CliCalExt = ["EnsembleKalmanProcesses", "JLD2"]
 ParamVizExt = ["Unitful", "UnitfulMoles"]
 
 [extras]
+ClimaAnalysis = "29b5916a-a76c-4e73-9657-3c8fd22e65e6"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test"]
+test = ["ClimaAnalysis", "Test"]
 
 [compat]
 Bonito = "4.1.3"

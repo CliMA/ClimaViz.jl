@@ -4,3 +4,10 @@ git-tree-sha1 = "6cddb07eeee2dd46dc5a19e9b2f706302ddba2c9"
     [[era5_monthly_averages_surface_single_level_1979_2024.download]]
     sha256 = "46b422722d98c89c6bc0b8641bff259db1caee253f45389ddf9eb9c2d31ed605"
     url = "https://caltech.box.com/shared/static/jbgtyt6oq9lxvk8il5zzck6k581q7f3k.gz"
+
+[inversion_nee]
+git-tree-sha1 = "d400472ea191639cb1dafac41b09ce36383aee54"
+
+    [[inversion_nee.download]]
+    sha256 = "84ccc2b60b276575342886535d78faa83f64dd83e327f65b31a10da8f9da721c"
+    url = "https://caltech.box.com/shared/static/13xeg76obc5cc73h2sqzhogx0hr97poz.gz"

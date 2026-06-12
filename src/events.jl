@@ -2,23 +2,23 @@
 # Clicking either the main map or the bias map picks the profile/time-series
 # location. Both axes are GeoAxis with the same projection, so the click→lonlat
 # transform is identical; only the (figure, axis) pair differs.
-function setup_mouse_click_handler(fig, state::AppState)
-    _register_location_click!(fig, state.ax, state)
-    _register_location_click!(state.fig_bias, state.ax_bias, state)
+function setup_mouse_click_handler(fig, state::AppState, ts_mode_menu)
+    _register_location_click!(fig, state.ax, state, ts_mode_menu)
+    _register_location_click!(state.fig_bias, state.ax_bias, state, ts_mode_menu)
 end
 
-function _register_location_click!(fig, ax, state::AppState)
+function _register_location_click!(fig, ax, state::AppState, ts_mode_menu)
     on(events(fig).mousebutton) do event
         if event.button == Mouse.left && event.action == Mouse.press
             mp = mouseposition(ax)
             trans = Proj.Transformation(ax.dest[], ax.source[]; always_xy = true)
             lonlat = trans(mp)
-            _select_location!(state, lonlat[1], lonlat[2])
+            _select_location!(state, lonlat[1], lonlat[2], ts_mode_menu)
         end
     end
 end
 
-function _select_location!(state::AppState, lon, lat)
+function _select_location!(state::AppState, lon, lat, ts_mode_menu)
     state.lon_profile[] = lon
     state.lat_profile[] = lat
 
@@ -31,16 +31,107 @@ function _select_location!(state::AppState, lon, lat)
     end
 
     state.profile_title[] = profile_title_string(state.var[], state.dates_array, state.time_selected[], state.lon_profile[], state.lat_profile[], state.aggregation_level[])
-    state.timeseries_title[] = timeseries_title_string(state.var[], state.heights, state.height_selected[], state.lon_profile[], state.lat_profile[])
 
-    state.timeseries[] = get_timeseries(state.sim_agg[], state.lon_profile[], state.lat_profile[]; height_selected = state.height_selected[])
-    state.timeseries_obs[] = get_obs_timeseries(state.obs_agg[], state.lon_profile[], state.lat_profile[], length(state.timeseries[]))
+    if state.timeseries_mode[] === :global
+        # A map click means "show me this location" — switch the dropdown back
+        # to Local; its handler recomputes the series at the new location.
+        ts_mode_menu.option_index[] = 1
+    else
+        _update_timeseries!(state)
+    end
+end
+
+# ─── Time series: local (clicked point) vs global mean ─────────────────────
+# The "global" entry's label and mask depend on the component (land mean /
+# full globe / ocean mean) — see MASK_SPECS in utils.jl.
+ts_mode_labels(mask_kind::Symbol) = ["Local (click map)", mask_spec(mask_kind).global_label]
+
+function setup_timeseries_mode_handler(ts_mode_menu, state::AppState)
+    on(ts_mode_menu.value) do label
+        state.updating && return
+        new_mode = startswith(String(label), "Global") ? :global : :local
+        new_mode === state.timeseries_mode[] && return
+        state.timeseries_mode[] = new_mode
+        _update_timeseries!(state)
+    end
+end
+
+# Recompute the time-series pair (sim + obs) and its title for the current
+# mode, location, height, aggregation level and component mask.
+function _update_timeseries!(state::AppState)
+    sim_agg = state.sim_agg[]
+    obs_agg = state.obs_agg[]
+    spec = mask_spec(state.mask_kind)
+    if state.timeseries_mode[] === :global
+        state.timeseries[] = get_global_timeseries(sim_agg; height_selected = state.height_selected[], mask = spec.mask)
+        state.timeseries_obs[] = get_obs_global_timeseries(obs_agg, length(state.timeseries[]); mask = spec.mask)
+    else
+        state.timeseries[] = get_timeseries(sim_agg, state.lon_profile[], state.lat_profile[]; height_selected = state.height_selected[])
+        state.timeseries_obs[] = get_obs_timeseries(obs_agg, state.lon_profile[], state.lat_profile[], length(state.timeseries[]))
+    end
+    state.timeseries_title[] = timeseries_title_string(
+        state.var[], state.heights, state.height_selected[],
+        state.lon_profile[], state.lat_profile[], state.timeseries_mode[],
+        spec.global_label,
+    )
     autolimits!(state.ax_timeseries)
+end
+
+# (Re)build the time-series legend. Makie legends don't track label changes,
+# so this is called whenever the obs product name or line visibility changes
+# (i.e. on variable / aggregation switches).
+function _refresh_timeseries_legend!(state::AppState)
+    isnothing(state.timeseries_legend) || delete!(state.timeseries_legend)
+    plots = Any[state.timeseries_lines]
+    labels = Any["model"]
+    if state.show_obs_line[]
+        push!(plots, state.timeseries_obs_lines)
+        push!(labels, state.obs_name[])
+    end
+    legend = axislegend(
+        state.ax_timeseries, plots, labels;
+        position = :rt, framevisible = false, labelsize = 12, padding = (4, 4, 2, 2),
+    )
+    legend.labelcolor = state.dark_mode[] ? :white : :black
+    state.timeseries_legend = legend
+    return legend
+end
+
+# ─── Coupler component: swap the active SimDir ─────────────────────────────
+# `components` maps a label ("atmos", "land", …) to its `(simdir, bench_cache)`.
+# Switching swaps the data source and benchmark cache, repopulates the variable
+# menu, and selects its first variable — the variable handler then drives the
+# full refresh exactly as if the user had picked a variable.
+function setup_component_handler(component_menu, var_menu, ts_mode_menu, state::AppState, components)
+    on(component_menu.value) do label
+        haskey(components, label) || return
+        entry = components[label]
+        entry.simdir === state.simdir && return
+        state.simdir = entry.simdir
+        state.bench_cache = entry.bench_cache
+        state.mask_kind = component_mask_kind(label)
+        # Reset the time-series mode to Local and relabel its "Global" entry
+        # for the component's mask (land mean / full globe / ocean mean).
+        # Setting the mode first makes the value assignment a no-op in the
+        # dropdown handler; the variable switch below recomputes everything.
+        state.timeseries_mode[] = :local
+        labels = ts_mode_labels(state.mask_kind)
+        ts_mode_menu.option_index[] = 1
+        ts_mode_menu.value[] = first(labels)
+        ts_mode_menu.options[] = labels
+        vars = _sorted_vars(entry.simdir)
+        var_menu.options[] = vars
+        var_menu.value[] = first(vars)
+    end
 end
 
 # ─── Variable / reduction / period: switch active OutputVar ────────────────
 function setup_variable_handler(var_menu, reduction_menu, period_menu, height_slider, time_slider, aggregation_menu, state::AppState)
     on(var_menu.value) do v
+        # The ChoicesBox notifies `nothing` from the JS side whenever its
+        # options are replaced (component switch); the haskey check also drops
+        # any stale selection that doesn't exist in the new component.
+        (isnothing(v) || !haskey(state.simdir.vars, v)) && return
         state.updating = true
         try
             available_reductions = collect(keys(state.simdir.vars[v]))
@@ -55,7 +146,7 @@ function setup_variable_handler(var_menu, reduction_menu, period_menu, height_sl
 
             state.current_reduction = first(available_reductions)
             state.current_period = first(available_periods)
-            new_var = get(state.simdir; short_name = v, reduction = state.current_reduction, period = state.current_period)
+            new_var = load_sim_var(state.simdir, v, state.current_reduction, state.current_period; fallback_start_date = state.fallback_start_date)
             heights_new = has_height(new_var) ? new_var.dims[get_height_dim_name(new_var)] : Float64[]
 
             height_slider.index[] = 1
@@ -85,7 +176,7 @@ function setup_reduction_handler(reduction_menu, period_menu, time_slider, aggre
 
             state.current_reduction = reduction
             state.current_period = first(available_periods)
-            new_var = get(state.simdir; short_name = var_name, reduction = reduction, period = first(available_periods))
+            new_var = load_sim_var(state.simdir, var_name, reduction, first(available_periods); fallback_start_date = state.fallback_start_date)
             heights_new = has_height(new_var) ? new_var.dims[get_height_dim_name(new_var)] : Float64[]
             _update_aggregation_options!(aggregation_menu, new_var, state)
             update_for_new_variable(state, new_var, heights_new, time_slider)
@@ -104,7 +195,7 @@ function setup_period_handler(period_menu, reduction_menu, time_slider, aggregat
             reduction = reduction_menu.value[]
             state.current_reduction = reduction
             state.current_period = period
-            new_var = get(state.simdir; short_name = var_name, reduction = reduction, period = period)
+            new_var = load_sim_var(state.simdir, var_name, reduction, period; fallback_start_date = state.fallback_start_date)
             heights_new = has_height(new_var) ? new_var.dims[get_height_dim_name(new_var)] : Float64[]
             _update_aggregation_options!(aggregation_menu, new_var, state)
             update_for_new_variable(state, new_var, heights_new, time_slider)
@@ -142,11 +233,9 @@ function update_for_new_variable(state::AppState, new_var, heights_new, time_sli
     state.is_loading[] = true
     state.loading_status[] = string("Loading ", ClimaAnalysis.short_name(new_var), "…")
 
-    # New variable invalidates any cached resampled obs / bias limits / metrics.
-    empty!(state.bias_limits_cache)
-    empty!(state.obs_resampled_cache)
-    empty!(state.metrics_cache)
-
+    # The session caches are keyed by (short_name, reduction, period, level),
+    # so entries for other variables stay valid — keep them, switching back is
+    # then instant.
     state.var[] = new_var
     needs_height_update = has_height(new_var)
 
@@ -173,9 +262,10 @@ function update_for_new_variable(state::AppState, new_var, heights_new, time_sli
     state.obs_agg[] = obs_agg
     state.show_bias[] = !isnothing(obs_agg) && _has_lonlat_only(sim_agg)
     state.show_obs_line[] = !isnothing(obs_agg)
+    state.obs_name[] = obs_source_name(isnothing(obs_agg) ? obs : obs_agg)
 
     state.var_sliced[] = var_slice(sim_agg, state.time_selected[]; height_selected = state.height_selected[])
-    state.limits[] = get_limits(sim_agg, state.time_selected[]; height_selected = state.height_selected[])
+    state.limits[] = _cached_limits(state, sim_agg, state.height_selected[])
 
     if has_height(state.var[])
         update_title_with_height(state, state.time_selected[], state.heights[state.height_selected[]])
@@ -190,7 +280,6 @@ function update_for_new_variable(state::AppState, new_var, heights_new, time_sli
     tick_labels = [format_date_short(state.dates_array[i], state.aggregation_level[]) for i in tick_indices]
     state.ax_timeseries.xticks = (tick_indices, tick_labels)
 
-    state.timeseries_title[] = timeseries_title_string(state.var[], state.heights, state.height_selected[], state.lon_profile[], state.lat_profile[])
     state.profile_title[] = profile_title_string(state.var[], state.dates_array, state.time_selected[], state.lon_profile[], state.lat_profile[], state.aggregation_level[])
     state.time_value_text[] = format_date_for_level(state.dates_array[state.time_selected[]], state.aggregation_level[])
 
@@ -206,9 +295,8 @@ function update_for_new_variable(state::AppState, new_var, heights_new, time_sli
         ylims!(state.ax_profile, minimum(state.heights), maximum(state.heights))
     end
 
-    state.timeseries[] = get_timeseries(sim_agg, state.lon_profile[], state.lat_profile[]; height_selected = state.height_selected[])
-    state.timeseries_obs[] = get_obs_timeseries(obs_agg, state.lon_profile[], state.lat_profile[], length(state.timeseries[]))
-    autolimits!(state.ax_timeseries)
+    _update_timeseries!(state)
+    _refresh_timeseries_legend!(state)
 
     state.show_height[] = needs_height_update
 
@@ -216,6 +304,23 @@ function update_for_new_variable(state::AppState, new_var, heights_new, time_sli
 end
 
 _has_lonlat_only(var) = haskey(var.dims, "lon") && haskey(var.dims, "lat") && !has_height(var)
+
+# Fully qualified session-cache key for the active variable at `level`.
+_bench_key(state::AppState, level) = (
+    ClimaAnalysis.short_name(state.var[]),
+    state.current_reduction, state.current_period, level,
+)
+
+# Map colorbar limits for the active variable — a full-field quantile scan,
+# cached per (variable, reduction, period, level, height) so revisiting any
+# combination repaints instantly.
+function _cached_limits(state::AppState, sim_agg, height_selected)
+    key = (_bench_key(state, state.aggregation_level[])..., height_selected)
+    return get!(
+        () -> get_limits(sim_agg, state.time_selected[]; height_selected = height_selected),
+        state.limits_cache, key,
+    )
+end
 
 # ─── Benchmark: bias map + metrics ─────────────────────────────────────────
 # Try to satisfy the benchmark panel for the current (var, reduction, period,
@@ -227,13 +332,14 @@ function _try_cached_benchmark!(state::AppState, var_name, level)
     cache = state.bench_cache
     isnothing(cache) && return nothing
     key = (var_name, state.current_reduction, state.current_period, level)
-    fingerprint = _source_fingerprint(state.simdir, var_name, state.current_reduction, state.current_period)
+    fingerprint = _source_fingerprint(state.simdir, var_name, state.current_reduction, state.current_period) *
+        mask_spec(state.mask_kind).cache_tag
     entry = get_cached_entry(cache, key, fingerprint)
     isnothing(entry) && return nothing
     # Defensive: the cache is grid-specific; bail if the live grid differs.
     (length(entry.lon) == length(state.lon) && length(entry.lat) == length(state.lat)) || return nothing
 
-    base = (var_name, level)
+    base = _bench_key(state, level)
     state.bias_limits_cache[base] = entry.bias_limits
     slot = Dict{Int, Array{Float64, 2}}()
     for t in 1:entry.n
@@ -241,7 +347,7 @@ function _try_cached_benchmark!(state::AppState, var_name, level)
     end
     state.obs_resampled_cache[base] = slot
     for t in 1:entry.n
-        state.metrics_cache[(var_name, level, t)] = MetricsTable(copy(entry.metrics_per_t[t]), entry.units)
+        state.metrics_cache[(base..., t)] = MetricsTable(copy(entry.metrics_per_t[t]), entry.units)
     end
     return entry
 end
@@ -276,9 +382,9 @@ function recompute_benchmark!(state::AppState)
         entry = _try_cached_benchmark!(state, var_name, level)
         if !isnothing(entry)
             _update_bias_slice!(state, sim_trunc, obs_trunc, t)
-            state.bias_title[] = bias_title_string(state.var[], state.dates_array, state.time_selected[], level)
+            state.bias_title[] = bias_title_string(state.var[], state.dates_array, state.time_selected[], level, state.obs_name[])
             state.bias_limits[] = entry.bias_limits
-            mk = (var_name, level, t)
+            mk = (_bench_key(state, level)..., t)
             haskey(state.metrics_cache, mk) && (state.metrics[] = state.metrics_cache[mk])
             state.is_loading[] = false
             state.loading_status[] = ""
@@ -288,9 +394,9 @@ function recompute_benchmark!(state::AppState)
         # Synchronous: cheap bias slice + title, then cached limits if available.
         state.loading_status[] = "Computing bias map…"
         _update_bias_slice!(state, sim_trunc, obs_trunc, t)
-        state.bias_title[] = bias_title_string(state.var[], state.dates_array, state.time_selected[], level)
+        state.bias_title[] = bias_title_string(state.var[], state.dates_array, state.time_selected[], level, state.obs_name[])
 
-        cache_key = (var_name, level)
+        cache_key = _bench_key(state, level)
         if haskey(state.bias_limits_cache, cache_key)
             state.bias_limits[] = state.bias_limits_cache[cache_key]
             limits_ready = true
@@ -331,6 +437,7 @@ function _async_benchmark!(state::AppState, sim_trunc, obs_trunc, t, cache_key, 
         metrics = compute_metrics(
             sim_trunc, obs_trunc;
             selected_idx = t,
+            mask = mask_spec(state.mask_kind).mask,
             scopes = (:selected,),
             compute_seasonal_diagnostics = false,
         )
@@ -353,9 +460,7 @@ end
 # (variable, aggregation level, time index). Falls back to direct resample on
 # any cache miss / failure.
 function _get_obs_resampled_slice(state::AppState, sim_var, obs_var, t, sim_t)
-    var_name = ClimaAnalysis.short_name(state.var[])
-    level = state.aggregation_level[]
-    base_key = (var_name, level)
+    base_key = _bench_key(state, state.aggregation_level[])
     slot = get!(state.obs_resampled_cache, base_key) do
         Dict{Int, Array{Float64, 2}}()
     end
@@ -405,17 +510,17 @@ function setup_aggregation_handler(aggregation_menu, time_slider, state::AppStat
             state.obs_agg[] = obs_agg
             state.show_bias[] = !isnothing(obs_agg) && _has_lonlat_only(sim_agg)
             state.show_obs_line[] = !isnothing(obs_agg)
+            state.obs_name[] = obs_source_name(isnothing(obs_agg) ? obs : obs_agg)
 
             state.var_sliced[] = var_slice(sim_agg, new_idx; height_selected = state.height_selected[])
-            state.limits[] = get_limits(sim_agg, new_idx; height_selected = state.height_selected[])
+            state.limits[] = _cached_limits(state, sim_agg, state.height_selected[])
 
             tick_indices = round.(Int, range(1, length(state.dates_array), length = min(state.n_ticks, length(state.dates_array))))
             tick_labels = [format_date_short(state.dates_array[i], new_level) for i in tick_indices]
             state.ax_timeseries.xticks = (tick_indices, tick_labels)
-            state.timeseries[] = get_timeseries(sim_agg, state.lon_profile[], state.lat_profile[]; height_selected = state.height_selected[])
-            state.timeseries_obs[] = get_obs_timeseries(obs_agg, state.lon_profile[], state.lat_profile[], length(state.timeseries[]))
+            _update_timeseries!(state)
+            _refresh_timeseries_legend!(state)
             state.time_value_text[] = format_date_for_level(state.dates_array[new_idx], new_level)
-            autolimits!(state.ax_timeseries)
 
             # Re-render titles with the new level's date format.
             if has_height(state.var[])
@@ -445,6 +550,10 @@ end
 
 # ─── Time slider ───────────────────────────────────────────────────────────
 function setup_time_handler(time_slider, state::AppState)
+    # Monotone token for the async metrics computation below: each slider tick
+    # bumps it, and a finished computation only lands if its token is still the
+    # newest (results for skipped-over frames are discarded).
+    metrics_request = Ref(0)
     on(time_slider.value) do t
         # Skip while another handler is mid-update (it resizes the slider and
         # repaints everything itself with consistent state).
@@ -480,7 +589,7 @@ function setup_time_handler(time_slider, state::AppState)
                     sim_t = ClimaAnalysis.slice(sim_agg; time = sim_agg.dims["time"][t])
                     obs_resampled_slice = _get_obs_resampled_slice(state, sim_agg, obs_agg, t, sim_t)
                     state.bias_sliced[] = sim_t.data .- obs_resampled_slice
-                    state.bias_title[] = bias_title_string(state.var[], state.dates_array, t, level)
+                    state.bias_title[] = bias_title_string(state.var[], state.dates_array, t, level, state.obs_name[])
                 end
             catch
                 # leave bias_sliced unchanged
@@ -489,21 +598,40 @@ function setup_time_handler(time_slider, state::AppState)
 
         # Metrics update for "Selected" scope only — skip while animating.
         if state.show_bias[] && !state.is_playing[]
-            mk = (ClimaAnalysis.short_name(state.var[]), level, t)
+            mk = (_bench_key(state, level)..., t)
             if haskey(state.metrics_cache, mk)
-                # Cache hit (prefilled from disk): instant.
+                # Cache hit (prefilled from disk or computed earlier): instant.
                 state.metrics[] = state.metrics_cache[mk]
             else
-                try
-                    sim_agg_l = state.sim_agg[]
-                    obs_agg_l = state.obs_agg[]
+                # Cache miss: the :selected metrics cost ~2 s (regridding), so
+                # compute off the handler and apply only if this is still the
+                # newest request — scrubbing stays smooth instead of blocking
+                # per tick (latest-wins via `metrics_request`).
+                request = (metrics_request[] += 1)
+                sim_agg_l = state.sim_agg[]
+                obs_agg_l = state.obs_agg[]
+                prev_metrics = state.metrics[]
+                @async try
                     n = min(length(ClimaAnalysis.dates(sim_agg_l)), length(ClimaAnalysis.dates(obs_agg_l)))
-                    sim_trunc = _select_time_indices(sim_agg_l, collect(1:n))
-                    obs_trunc = _select_time_indices(obs_agg_l, collect(1:n))
-                    new_table = MetricsTable(state.metrics[].units)
-                    merge!(new_table.values, state.metrics[].values)
-                    update_metrics_scope!(new_table, sim_trunc, obs_trunc, :selected; selected_idx = min(t, n))
-                    state.metrics[] = new_table
+                    new_table = MetricsTable(prev_metrics.units)
+                    merge!(new_table.values, prev_metrics.values)
+                    update_metrics_scope!(
+                        new_table,
+                        _select_time_indices(sim_agg_l, collect(1:n)),
+                        _select_time_indices(obs_agg_l, collect(1:n)),
+                        :selected;
+                        mask = mask_spec(state.mask_kind).mask, selected_idx = min(t, n),
+                    )
+                    # Cache regardless; display only if no newer computation
+                    # was requested AND the panel still shows this exact
+                    # (variable, level, frame) — a cache hit or a variable
+                    # switch in between doesn't bump the token, hence the
+                    # full key check.
+                    state.metrics_cache[mk] = new_table
+                    current_key = (_bench_key(state, state.aggregation_level[])..., state.time_selected[])
+                    if metrics_request[] == request && current_key == mk
+                        state.metrics[] = new_table
+                    end
                 catch
                 end
             end
@@ -519,16 +647,14 @@ function setup_height_handler(height_slider, state::AppState)
         end
         sim_agg = state.sim_agg[]
         state.var_sliced[] = var_slice(sim_agg, state.time_selected[]; height_selected = h)
-        state.limits[] = get_limits(sim_agg, state.time_selected[]; height_selected = h)
+        state.limits[] = _cached_limits(state, sim_agg, h)
 
         update_title_with_height(state, state.time_selected[], state.heights[h])
 
-        state.timeseries[] = get_timeseries(sim_agg, state.lon_profile[], state.lat_profile[]; height_selected = h)
-        autolimits!(state.ax_timeseries)
+        _update_timeseries!(state)
 
         state.height_value_text[] = string(round(state.heights[h], digits = 1), " m")
         state.current_height[] = state.heights[h]
-        state.timeseries_title[] = timeseries_title_string(state.var[], state.heights, h, state.lon_profile[], state.lat_profile[])
     end
 end
 
@@ -650,6 +776,6 @@ function setup_dark_mode_handler(state::AppState, session)
         state.ax_timeseries.xgridcolor = (text_color, 0.2)
         state.ax_timeseries.ygridcolor = (text_color, 0.2)
         state.timeseries_lines.color = line_color
-        state.timeseries_legend.labelcolor = text_color
+        isnothing(state.timeseries_legend) || (state.timeseries_legend.labelcolor = text_color)
     end
 end
