@@ -1,13 +1,17 @@
 export layout
 
 function layout(
-    var_menu, reduction_menu, period_menu, aggregation_menu,
+    var_menu, reduction_menu, period_menu, aggregation_menu, ts_mode_menu,
     time_slider, height_slider, play_button, speed_slider,
     fig, fig_bias, fig_profile, fig_timeseries,
     show_height, show_bias, metrics, coverage_text,
     time_value_label, height_value_label, speed_value_label,
     dark_mode_checkbox,
-    is_loading, loading_status,
+    is_loading, loading_status, obs_name;
+    run_title = "",
+    component_menu = nothing,
+    summary_button = nothing,
+    summary_overlay = nothing,
 )
     label_style = Bonito.Styles(
         "font-size" => "0.9rem", "font-weight" => "600",
@@ -42,15 +46,32 @@ function layout(
         "background-color" => "#1a1a1a",
     )
 
-    menu_column = Bonito.Col(
-        dark_mode_row,
+    # Optional run caption shown just below the play button.
+    run_title_style = Bonito.Styles(
+        "font-size" => "1.0rem", "font-weight" => "700",
+        "margin" => "8px 0 0 0", "text-align" => "center", "color" => "#9ec5fe",
+    )
+
+    menu_items = Any[dark_mode_row]
+    if !isnothing(component_menu)
+        push!(menu_items, Bonito.Row(Bonito.DOM.h1("Component: "; style = label_style), component_menu))
+    end
+    append!(menu_items, Any[
         Bonito.Row(Bonito.DOM.h1("Variable: "; style = label_style), var_menu),
         Bonito.Row(Bonito.DOM.h1("Aggregation: "; style = label_style), aggregation_menu),
+        Bonito.Row(Bonito.DOM.h1("Time series: "; style = label_style), ts_mode_menu),
         Bonito.Row(Bonito.DOM.h1("Time: "; style = label_style), time_slider, time_value_label),
         height_row,
-        animation_row;
-        height = "auto",
-    )
+        animation_row,
+    ])
+    if !isnothing(summary_button)
+        push!(menu_items, Bonito.Row(summary_button))
+    end
+    if !isempty(run_title)
+        push!(menu_items, Bonito.DOM.div(run_title; style = run_title_style))
+    end
+
+    menu_column = Bonito.Col(menu_items...; height = "auto")
 
     menu_card = Bonito.Card(
         menu_column;
@@ -60,7 +81,7 @@ function layout(
     )
 
     metrics_card = Bonito.Card(
-        _metrics_panel(metrics, coverage_text);
+        _metrics_panel(metrics, coverage_text, obs_name);
         shadow_size = "0",
         style = menu_card_style,
         class = "menu-card metrics-card",
@@ -87,13 +108,15 @@ function layout(
     )
 
     progress_bar, status_label, css_block = _progress_indicator(is_loading, loading_status)
-    return Bonito.Col(css_block, progress_bar, status_label, grid)
+    tail = isnothing(summary_overlay) ? () : (summary_overlay,)
+    return Bonito.Col(css_block, progress_bar, status_label, grid, tail...)
 end
 
 # Compact metrics panel. Always reports the currently selected time frame
 # (`:selected` scope); `coverage_text` shows which period that frame covers
-# (e.g. "January 2009", "MAM 2009", "2009").
-function _metrics_panel(metrics, coverage_text)
+# (e.g. "January 2009", "MAM 2009", "2009"). `obs_name` is the obs product
+# display name, used to label the obs rows ("ERA5 mean" instead of "Obs mean").
+function _metrics_panel(metrics, coverage_text, obs_name)
     label_style = Bonito.Styles(
         "font-size" => "1.1rem", "font-weight" => "600",
         "padding" => "4px 8px", "color" => "white", "text-align" => "left",
@@ -121,8 +144,9 @@ function _metrics_panel(metrics, coverage_text)
     rows = Any[]
     for m in METRIC_ROWS
         value_text = map(t -> format_cell(t, m, :selected), metrics)
+        row_label = m === :obs_mean ? map(n -> string(n, " mean"), obs_name) : METRIC_LABELS[m]
         push!(rows, Bonito.DOM.div(
-            Bonito.DOM.span(METRIC_LABELS[m]; style = label_style),
+            Bonito.DOM.span(row_label; style = label_style),
             Bonito.DOM.span(value_text; style = value_style);
             style = row_style,
         ))

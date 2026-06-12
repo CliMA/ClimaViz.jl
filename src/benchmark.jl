@@ -37,19 +37,32 @@ function _era5_loader(varname_era5, varname_sim; flip_sign = false)
             end
         end
         obs_var.attributes["short_name"] = varname_sim
+        obs_var.attributes["obs_source"] = "ERA5"
         return obs_var
     end
 end
 
 """
+    obs_source_name(obs)
+
+Display name of the observation product behind `obs` (an `OutputVar` or
+`nothing`), read from its `"obs_source"` attribute. The built-in loaders set it
+("ERA5", "CarbonTracker", "GOSIF", …); custom loaders without the attribute
+fall back to the generic `"obs"`.
+"""
+obs_source_name(obs) = isnothing(obs) ? "obs" : get(obs.attributes, "obs_source", "obs")
+
+"""
     default_era5_obs()
 
-Built-in `Dict{String, Function}` mapping ClimaLand simulation short names to
-ERA5 monthly observation loaders. Each loader takes a `start_date` and returns
-a `ClimaAnalysis.OutputVar` aligned to that origin.
+Built-in `Dict{String, Function}` mapping simulation short names to ERA5
+monthly observation loaders. Each loader takes a `start_date` and returns a
+`ClimaAnalysis.OutputVar` aligned to that origin.
 
-Covers: `lhf`, `shf`, `lwu`, `swu` (W m⁻², surface monthly, 1°×1°). Returns an
-empty Dict if the underlying artifact is unavailable.
+Covers the surface fluxes (W m⁻², monthly, 1°×1°) under both the ClimaLand
+names (`lhf`, `shf`, `lwu`, `swu`) and the ClimaAtmos/CMIP names (`hfls`,
+`hfss`, `rlus`, `rsus`) — the same ERA5 fields and sign conventions either
+way. Returns an empty Dict if the underlying artifact is unavailable.
 """
 function default_era5_obs()
     isnothing(_era5_monthly_nc_path()) && return Dict{String, Function}()
@@ -58,8 +71,134 @@ function default_era5_obs()
         "shf" => _era5_loader("msshf", "shf"; flip_sign = true),
         "lwu" => _era5_loader("msuwlwrf", "lwu"; flip_sign = false),
         "swu" => _era5_loader("msuwswrf", "swu"; flip_sign = false),
+        "hfls" => _era5_loader("mslhf", "hfls"; flip_sign = true),
+        "hfss" => _era5_loader("msshf", "hfss"; flip_sign = true),
+        "rlus" => _era5_loader("msuwlwrf", "rlus"; flip_sign = false),
+        "rsus" => _era5_loader("msuwswrf", "rsus"; flip_sign = false),
     )
 end
+
+# ─── Inversion-derived carbon observations ────────────────────────────────────
+#
+# Monthly 1°×1° carbon fluxes from the ClimaLand `inversion_nee` artifact
+# (`derived_nee_gpp_er_rh_2002_2020.nc`, 2002–2020): CarbonTracker CT2022 NEE,
+# GOSIF-GPP v2, residual ER (= NEE + GPP), and Hashimoto-2015 Rh. See ClimaLand's
+# `get_inversion_obs_var_dict` — this mirrors its loading, minus the calibration
+# unit string. The inversion products are natively g C m^-2 day^-1, which is also
+# the dashboard's display unit for carbon (see `to_display_units`), so the loaders
+# keep that unit and the sim side is converted to match. Sign conventions already
+# match the model (positive = source for nee/er/hr, positive = uptake for gpp), so
+# no flip is applied.
+
+# mol CO2 (1:1 with mol C) → g C, per molar mass of carbon, then per day.
+const _G_C_PER_MOL = 12.011
+const _SECONDS_PER_DAY = 86400.0
+
+# ─── Display-unit conversion ──────────────────────────────────────────────────
+#
+# ClimaLand stores carbon fluxes in mol CO2 m^-2 s^-1, where values are ~1e-6 and
+# the metrics table would render every cell as 0.00. For display we rescale them —
+# and only them — to the more legible g C m^-2 day^-1. Detection is by unit string
+# so every carbon flux (gpp/nee/er/hr/ra, with or without an observation) is
+# caught while energy (W m^-2) and water (kg m^-2 s^-1) fluxes pass through.
+
+const _CARBON_FLUX_UNITS = ("mol CO2 m^-2 s^-1", "mol CO2 m**-2 s**-1")
+const _DISPLAY_CARBON_UNITS = "g C m^-2 day^-1"
+
+is_carbon_flux(var) = ClimaAnalysis.units(var) in _CARBON_FLUX_UNITS
+
+"""
+    to_display_units(var)
+
+Convert a freshly-loaded simulation `OutputVar` to the units the dashboard
+displays. Currently this rescales carbon fluxes from `mol CO2 m^-2 s^-1` to
+`g C m^-2 day^-1` (× molar mass of C × seconds/day); all other variables are
+returned unchanged. Apply this once, at each point a sim variable is loaded, so
+the map, bias panel, time series, and metrics all share one consistent unit.
+"""
+function to_display_units(var)
+    is_carbon_flux(var) || return var
+    return ClimaAnalysis.convert_units(
+        var, _DISPLAY_CARBON_UNITS;
+        conversion_function = u -> u * _G_C_PER_MOL * _SECONDS_PER_DAY,
+    )
+end
+
+function _inversion_nc_path()
+    try
+        dir = artifact"inversion_nee"
+        return joinpath(dir, "derived_nee_gpp_er_rh_2002_2020.nc")
+    catch e
+        @warn "ClimaViz: inversion_nee artifact not available; carbon benchmark disabled" exception=(e, catch_backtrace())
+        return nothing
+    end
+end
+
+# Scale every time slice in place by `1 / daysinmonth(date)`, converting a
+# monthly *total* (… month⁻¹) to a daily *rate* (… day⁻¹). Mirrors ClimaLand's
+# `_monthly_total_to_daily_rate!`; uses actual days-in-month to avoid the ±5%
+# spurious seasonality a constant 30.44 would introduce.
+function _monthly_total_to_daily_rate!(var)
+    dates = ClimaAnalysis.dates(var)
+    factors = 1.0 ./ Float64.(Dates.daysinmonth.(dates))
+    t_idx = var.dim2index["time"]
+    shape = ntuple(d -> d == t_idx ? length(factors) : 1, ndims(var.data))
+    var.data .*= reshape(factors, shape)
+    return var
+end
+
+# Build a loader for one inversion carbon variable. `varname_obs` is the name in
+# the NetCDF file (`nee`/`gpp`/`er`/`rh`); `varname_sim` is the matching sim
+# short_name (`nee`/`gpp`/`er`/`hr`). `monthly_total = true` first rescales a
+# monthly total to a daily rate (nee/gpp/er); `rh` is already a daily rate.
+# `source` is the product display name shown in the UI (legend, bias title, …).
+function _inversion_loader(varname_obs, varname_sim; monthly_total::Bool, source::String)
+    return function (_start_date)
+        path = _inversion_nc_path()
+        isnothing(path) && return nothing
+        obs_var = ClimaAnalysis.OutputVar(path, varname_obs)
+        obs_var = ClimaAnalysis.replace(obs_var, missing => NaN)
+        # → g C m⁻² day⁻¹ (the dashboard display unit; sim is converted to match)
+        monthly_total && _monthly_total_to_daily_rate!(obs_var)
+        obs_var = ClimaAnalysis.set_units(obs_var, _DISPLAY_CARBON_UNITS)
+        obs_var.attributes["short_name"] = varname_sim
+        obs_var.attributes["obs_source"] = source
+        return obs_var
+    end
+end
+
+"""
+    default_inversion_obs()
+
+Built-in `Dict{String, Function}` mapping ClimaLand carbon short names to
+inversion-derived observation loaders from the `inversion_nee` artifact. Each
+loader returns a `ClimaAnalysis.OutputVar` in `g C m⁻² day⁻¹` (the dashboard's
+carbon display unit), monthly 1°×1°, 2002–2020.
+
+Covers: `nee` (CarbonTracker CT2022), `gpp` (GOSIF-GPP v2), `er` (residual
+NEE + GPP), `hr` (Hashimoto-2015 Rh). Returns an empty Dict if the underlying
+artifact is unavailable.
+"""
+function default_inversion_obs()
+    isnothing(_inversion_nc_path()) && return Dict{String, Function}()
+    return Dict{String, Function}(
+        "nee" => _inversion_loader("nee", "nee"; monthly_total = true, source = "CarbonTracker"),
+        "gpp" => _inversion_loader("gpp", "gpp"; monthly_total = true, source = "GOSIF"),
+        "er"  => _inversion_loader("er", "er"; monthly_total = true, source = "CarbonTracker+GOSIF"),
+        "hr"  => _inversion_loader("rh", "hr"; monthly_total = false, source = "Hashimoto2015"),
+    )
+end
+
+"""
+    default_obs()
+
+Combined built-in observation set: ERA5 monthly energy fluxes
+([`default_era5_obs`](@ref): `lhf`, `shf`, `lwu`, `swu`) merged with the
+inversion-derived carbon fluxes ([`default_inversion_obs`](@ref): `nee`, `gpp`,
+`er`, `hr`). This is the default observation registry for [`dashboard`](@ref)
+and [`precompute_dashboard_cache`](@ref).
+"""
+default_obs() = merge(default_era5_obs(), default_inversion_obs())
 
 mutable struct ObsBundle
     loaders::Dict{String, Function}
@@ -292,12 +431,16 @@ Base.setindex!(t::MetricsTable, v, m::Symbol, s::Symbol) =
 function format_cell(t::MetricsTable, m::Symbol, s::Symbol)
     v = t[m, s]
     isnan(v) && return "—"
-    if m === :spatial_r || m === :amplitude_ratio
-        return string(round(v; digits = 2))
-    elseif m === :phase_shift
+    if m === :phase_shift
         return string(round(Int, v))
-    else
+    elseif m === :spatial_r || m === :amplitude_ratio
         return string(round(v; digits = 2))
+    elseif v == 0 || abs(v) >= 0.1
+        return string(round(v; digits = 2))
+    else
+        # Small magnitudes (e.g. a near-zero NEE bias) would round to 0.00 at two
+        # decimals; fall back to significant figures so they stay legible.
+        return string(round(v; sigdigits = 3))
     end
 end
 

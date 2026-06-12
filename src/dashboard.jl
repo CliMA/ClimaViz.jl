@@ -1,5 +1,10 @@
+# Internal test/debug hook: when set, called with the live widget bundle at the
+# end of each dashboard session setup so integration tests can drive the menus
+# server-side. Stays `nothing` in normal use.
+const _DASHBOARD_HOOK = Ref{Any}(nothing)
+
 """
-    dashboard(path::String; HPC=false, obs=default_era5_obs())
+    dashboard(path::String; HPC=false, obs=default_obs())
 
 Launch an interactive web dashboard for visualizing climate simulation outputs
 and benchmarking against gridded observations when available.
@@ -11,20 +16,28 @@ Features:
   native data resolution.
 - 2D map (model) with click-to-select location.
 - Bias map (model − observation) when an observation is registered for the
-  selected variable; otherwise hidden.
+  selected variable; otherwise hidden. Observation products are shown by name
+  (ERA5, CarbonTracker, GOSIF, …) in the legend, bias panel and metrics table.
+- Time-series mode menu: Local (the clicked map location) or Global (area-
+  weighted mean, the same convention as the metrics table). The spatial mask
+  for "global" follows the component: ocean-masked land mean for ClimaLand
+  output (and plain runs), the full globe for atmos, land-masked ocean mean
+  for ocean/seaice. Clicking a map switches back to Local at that location.
 - Vertical profile when the variable has a `z` / `z_reference` dimension;
   otherwise replaced by a benchmark metrics table (Sim mean, Obs mean, Bias,
   RMSE, Spatial r, Amplitude ratio, Phase shift across All-time / Selected /
   DJF / MAM / JJA / SON).
-- Time-series at the selected location.
+- Time-series at the selected location (or global land mean), with the
+  observation overlaid when available.
 
 # Arguments
 - `path::String`: simulation output directory (readable by `SimDir`).
 - `HPC::Bool = false`: serve on `0.0.0.0:8080` for HPC port-forwarding.
-- `obs::Dict{String,Function} = default_era5_obs()`: maps variable short_names
+- `obs::Dict{String,Function} = default_obs()`: maps variable short_names
   to obs loaders. Each loader receives the sim's start_date and returns a
   `ClimaAnalysis.OutputVar`. The default registers ERA5 monthly fluxes for
-  `lhf`, `shf`, `lwu`, `swu` via the ClimaViz LazyArtifact.
+  `lhf`, `shf`, `lwu`, `swu` and inversion-derived carbon fluxes for `nee`,
+  `gpp`, `er`, `hr` via ClimaViz LazyArtifacts.
 - `cache::Bool = true`: read/write the persistent benchmark cache in
   `<path>/.climaviz_cache`. On a hit, the bias map, colorbar limits and metrics
   for the selected variable are served from disk instead of recomputed
@@ -33,9 +46,27 @@ Features:
   miss, so this is purely a responsiveness optimization. See
   [`precompute_dashboard_cache`](@ref) to warm it up front.
 - `precompute::Bool = false`: before serving, run
-  [`precompute_dashboard_cache`](@ref) to warm every cacheable entry. Slow on a
-  cold cache (regridding + metrics for all variables), near-instant if already
-  warm. Useful for long-lived deployments; ignored when `cache = false`.
+  [`precompute_dashboard_cache`](@ref) (per component in coupled mode) and warm
+  the model-summary cache, so every benchmark panel and the first "Model
+  summary" click are instant. Slow on a cold cache (regridding + metrics for
+  all variables), near-instant if already warm. Useful for long-lived
+  deployments; ignored when `cache = false`.
+- `run_title::String = ""`: optional caption shown in the menu, just below the
+  play button (e.g. `"ClimaLand long run, #4836"`). Empty string hides it.
+- `coupled::Bool = false`: treat `path` as a ClimaCoupler output directory
+  holding one subfolder per component (`clima_atmos`, `clima_land`,
+  `clima_ocean`, `clima_seaice`) instead of a single flat output. Adds a
+  "Component:" menu that swaps the active component at runtime; components
+  whose folder is missing or empty are skipped. The atmos component is
+  restricted to its monthly (`_1M_`) native-grid diagnostics, and components
+  whose files lack a `start_date` attribute (possible for land) inherit the
+  atmos one. All components are assumed to share the diagnostic lon/lat grid
+  (ClimaCoupler regrids them onto one). The benchmark cache lives per
+  component folder.
+
+A "Model summary" button opens an overlay with the global RMSE (and bias) of
+every benchmarked variable over the whole simulation period, per season —
+computed once per component (persisted via the cache) on first open.
 
 # Example
 ```julia
@@ -45,16 +76,58 @@ dashboard("path/to/output/")
 # Warm the cache once, then everything is instant:
 precompute_dashboard_cache("path/to/output/")
 dashboard("path/to/output/")
+
+# ClimaCoupler AMIP run (clima_atmos/, clima_land/, … subfolders):
+dashboard("path/to/coupler_output/"; coupled = true)
 ```
 """
-function dashboard(path; HPC = false, obs = default_era5_obs(), cache = true, precompute = false)
-    bench_cache = cache ? BenchmarkCache(path) : nothing
-    if precompute && cache
-        precompute_dashboard_cache(path; obs = obs)
+function dashboard(path; HPC = false, obs = default_obs(), cache = true, precompute = false, run_title = "", coupled = false)
+    if coupled
+        components_found = discover_components(path)
+        isempty(components_found) && error(
+            "ClimaViz: no ClimaCoupler component output found under $path " *
+            "(expected non-empty clima_atmos/, clima_land/, … subfolders)",
+        )
+        components = Dict(
+            c.label => (simdir = c.simdir, bench_cache = cache ? BenchmarkCache(c.path) : nothing)
+            for c in components_found
+        )
+        component_labels = [c.label for c in components_found]
+        coupled_fallback_start_date = "atmos" in component_labels ?
+            _component_start_date(components["atmos"].simdir) : nothing
+        if precompute && cache
+            for c in components_found
+                kind = component_mask_kind(c.label)
+                precompute_dashboard_cache(c.path; obs = obs, mask_kind = kind)
+                precompute_summary!(
+                    c.simdir, components[c.label].bench_cache, obs;
+                    fallback_start_date = coupled_fallback_start_date, mask_kind = kind,
+                )
+            end
+        end
+    else
+        single_bench_cache = cache ? BenchmarkCache(path) : nothing
+        if precompute && cache
+            precompute_dashboard_cache(path; obs = obs)
+            precompute_summary!(ClimaAnalysis.SimDir(path), single_bench_cache, obs)
+        end
     end
     app = Bonito.App(title = "CliMA dashboard") do session
-        simdir = ClimaAnalysis.SimDir(path)
-        vars = collect(keys(simdir.vars))
+        if coupled
+            initial_component = first(component_labels)
+            simdir = components[initial_component].simdir
+            bench_cache = components[initial_component].bench_cache
+            # Components without their own start_date (possible for land)
+            # inherit the atmos one.
+            fallback_start_date = coupled_fallback_start_date
+            mask_kind = component_mask_kind(initial_component)
+        else
+            simdir = ClimaAnalysis.SimDir(path)
+            bench_cache = single_bench_cache
+            fallback_start_date = nothing
+            mask_kind = :land
+        end
+        vars = _sorted_vars(simdir)
 
         # Dark mode (default on)
         checkbox_style = Bonito.Styles(
@@ -79,6 +152,16 @@ function dashboard(path; HPC = false, obs = default_era5_obs(), cache = true, pr
             "min-width" => "80px", "max-width" => "180px",
         )
 
+        # Component (coupled mode only)
+        if coupled
+            component_menu = Bonito.Dropdown(component_labels; style = dropdown_style)
+            component_menu.value[] = initial_component
+            component_label = component_menu.value
+        else
+            component_menu = nothing
+            component_label = Observable("")
+        end
+
         # Variable / reduction / period
         var_menu = Bonito.ChoicesBox(vars; style = var_menu_style)
         var_menu.value[] = first(vars)
@@ -93,7 +176,7 @@ function dashboard(path; HPC = false, obs = default_era5_obs(), cache = true, pr
         period_menu.value[] = first(available_periods)
 
         # Initial variable
-        initial_var = get(simdir; short_name = var_selected[], reduction = reduction_menu.value[], period = period_menu.value[])
+        initial_var = load_sim_var(simdir, var_selected[], reduction_menu.value[], period_menu.value[]; fallback_start_date)
         lon = initial_var.dims["lon"]
         lat = initial_var.dims["lat"]
         times = initial_var.dims["time"]
@@ -105,6 +188,11 @@ function dashboard(path; HPC = false, obs = default_era5_obs(), cache = true, pr
         aggregation_menu = Bonito.Dropdown(agg_labels; style = dropdown_style)
         aggregation_menu.value[] = first(agg_labels)
         aggregation_level = Observable(:native)
+
+        # Time-series mode: local (clicked point) or global mean (the label
+        # and mask follow the component — land mean / full globe / ocean mean)
+        ts_mode_menu = Bonito.Dropdown(ts_mode_labels(mask_kind); style = dropdown_style)
+        timeseries_mode = Observable(:local)
 
         # Observable for the current variable + aggregated form. Use Any-typed
         # observables because we swap between 3D and 4D OutputVars at runtime.
@@ -122,6 +210,7 @@ function dashboard(path; HPC = false, obs = default_era5_obs(), cache = true, pr
         initial_obs_agg = aggregate_obs(initial_obs, initial_var, :native)
         obs_agg = Observable{Any}(initial_obs_agg)
         show_bias = Observable(!isnothing(initial_obs_agg) && _has_lonlat_only(initial_var))
+        obs_name = Observable(obs_source_name(isnothing(initial_obs_agg) ? initial_obs : initial_obs_agg))
 
         # Sliders
         time_slider = Bonito.StylableSlider(1:length(times))
@@ -168,7 +257,7 @@ function dashboard(path; HPC = false, obs = default_era5_obs(), cache = true, pr
         # Bias observables
         bias_sliced = Observable(fill(NaN, length(lon), length(lat)))
         bias_limits = Observable((-1.0, 1.0))
-        bias_title = Observable(show_bias[] ? bias_title_string(initial_var, dates_array, time_selected[], aggregation_level[]) : "no observation available")
+        bias_title = Observable(show_bias[] ? bias_title_string(initial_var, dates_array, time_selected[], aggregation_level[], obs_name[]) : "no observation available")
 
         # Metrics observable + scope dropdown selection
         metrics = Observable(MetricsTable(ClimaAnalysis.units(initial_var)))
@@ -208,7 +297,7 @@ function dashboard(path; HPC = false, obs = default_era5_obs(), cache = true, pr
             create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_profile, :black, earth_img)
 
         fig_bias, ax_bias, coastlines_plot_bias, cbar_bias, surface_plot_bias, colorbar_label_bias =
-            create_bias_figure(var, bias_sliced, bias_limits, bias_title, lon, lat, lon_profile, lat_profile, :black)
+            create_bias_figure(var, bias_sliced, bias_limits, bias_title, lon, lat, lon_profile, lat_profile, :black, obs_name)
 
         fig_profile, ax_profile, profile_xlabel, profile_lines, profile_hlines, heights_obs, profile_box =
             create_profile_figure(var, heights, profile, profile_limits, current_height, profile_title, time_selected, :black, show_height)
@@ -222,15 +311,17 @@ function dashboard(path; HPC = false, obs = default_era5_obs(), cache = true, pr
         end
 
         fig_timeseries, ax_timeseries, timeseries_ylabel, current_time_index, n_ticks,
-            timeseries_lines, timeseries_obs_lines, timeseries_legend =
+            timeseries_lines, timeseries_obs_lines =
             create_timeseries_figure(
                 var, dates_array, timeseries, timeseries_obs, show_obs_line,
                 timeseries_title, time_selected, :black,
             )
 
-        bias_limits_cache = Dict{Tuple{String, Symbol}, Tuple{Float64, Float64}}()
-        obs_resampled_cache = Dict{Tuple{String, Symbol}, Any}()
-        metrics_cache = Dict{Tuple{String, Symbol, Int}, Any}()
+        bias_limits_cache = Dict{Tuple{String, String, String, Symbol}, Tuple{Float64, Float64}}()
+        obs_resampled_cache = Dict{Tuple{String, String, String, Symbol}, Any}()
+        metrics_cache = Dict{Tuple{String, String, String, Symbol, Int}, Any}()
+        limits_cache = Dict{Tuple{String, String, String, Symbol, Int}, Tuple{Float64, Float64}}()
+        limits_cache[(ClimaAnalysis.short_name(initial_var), reduction_menu.value[], period_menu.value[], :native, height_selected[])] = limits[]
 
         state = AppState(
             simdir, var, obs_bundle, dates_array, collect(heights), times,
@@ -240,20 +331,20 @@ function dashboard(path; HPC = false, obs = default_era5_obs(), cache = true, pr
             metrics, metrics_scope,
             lon_profile, lat_profile, profile, profile_limits, current_height, profile_title, profile_xlabel,
             heights_obs,
-            timeseries, timeseries_obs, show_obs_line, timeseries_title, timeseries_ylabel, current_time_index,
+            timeseries, timeseries_obs, show_obs_line, timeseries_mode, obs_name, timeseries_title, timeseries_ylabel, current_time_index,
             time_selected, height_selected, speed_selected,
             time_value_text, height_value_text, speed_value_text,
             dark_mode, show_height, is_playing, is_loading, loading_status,
             ax, ax_bias, ax_profile, ax_timeseries,
-            profile_lines, profile_hlines, timeseries_lines, timeseries_obs_lines, timeseries_legend,
+            profile_lines, profile_hlines, timeseries_lines, timeseries_obs_lines, nothing,  # legend built below
             coastlines_plot, coastlines_plot_bias,
             cbar, cbar_bias, colorbar_label, colorbar_label_bias,
             profile_box, surface_plot_colormap, surface_plot_bias,
             earth_surface, earth_img,
             lon, lat,
             fig, fig_bias, fig_profile, fig_timeseries,
-            bias_limits_cache, obs_resampled_cache, metrics_cache,
-            bench_cache, reduction_menu.value[], period_menu.value[],
+            bias_limits_cache, obs_resampled_cache, metrics_cache, limits_cache,
+            bench_cache, reduction_menu.value[], period_menu.value[], fallback_start_date, mask_kind,
             n_ticks, false,
         )
 
@@ -263,12 +354,18 @@ function dashboard(path; HPC = false, obs = default_era5_obs(), cache = true, pr
             update_title(state, time_selected[])
         end
 
+        # Model summary button + modal overlay
+        summary_button, summary_overlay, show_summary, summary_content = summary_ui(component_label)
+
         # Wire up handlers
-        setup_mouse_click_handler(fig, state)
+        coupled && setup_component_handler(component_menu, var_menu, ts_mode_menu, state, components)
+        setup_summary_handler(summary_button, show_summary, summary_content, state, component_label)
+        setup_mouse_click_handler(fig, state, ts_mode_menu)
         setup_variable_handler(var_menu, reduction_menu, period_menu, height_slider, time_slider, aggregation_menu, state)
         setup_reduction_handler(reduction_menu, period_menu, time_slider, aggregation_menu, state)
         setup_period_handler(period_menu, reduction_menu, time_slider, aggregation_menu, state)
         setup_aggregation_handler(aggregation_menu, time_slider, state)
+        setup_timeseries_mode_handler(ts_mode_menu, state)
         setup_time_handler(time_slider, state)
         setup_height_handler(height_slider, state)
         setup_speed_handler(speed_slider, state)
@@ -288,50 +385,29 @@ function dashboard(path; HPC = false, obs = default_era5_obs(), cache = true, pr
         # Initial benchmark computation
         recompute_benchmark!(state)
 
-        # Initial dark-mode (start dark) styling on Makie side
-        ax.titlecolor = :white
-        coastlines_plot.color = :white
-        cbar.labelcolor = :white
-        cbar.ticklabelcolor = :white
-        ax_bias.titlecolor = :white
-        coastlines_plot_bias.color = :white
-        cbar_bias.labelcolor = :white
-        cbar_bias.ticklabelcolor = :white
-        ax_profile.backgroundcolor = :black
-        ax_profile.titlecolor = :white
-        ax_profile.xlabelcolor = :white
-        ax_profile.ylabelcolor = :white
-        ax_profile.xticklabelcolor = :white
-        ax_profile.yticklabelcolor = :white
-        profile_lines.color = :white
-        profile_box.color = :black
-        ax_timeseries.backgroundcolor = :black
-        ax_timeseries.titlecolor = :white
-        ax_timeseries.xlabelcolor = :white
-        ax_timeseries.ylabelcolor = :white
-        ax_timeseries.xticklabelcolor = :white
-        ax_timeseries.yticklabelcolor = :white
-        ax_timeseries.xtickcolor = :white
-        ax_timeseries.ytickcolor = :white
-        ax_timeseries.leftspinecolor = :white
-        ax_timeseries.rightspinecolor = :white
-        ax_timeseries.topspinecolor = :white
-        ax_timeseries.bottomspinecolor = :white
-        ax_timeseries.xgridcolor = (:white, 0.2)
-        ax_timeseries.ygridcolor = (:white, 0.2)
-        timeseries_lines.color = :white
-        timeseries_legend.labelcolor = :white
-
+        # Build the time-series legend (model + obs product name), then apply
+        # the initial dark-mode styling — the dark_mode handler covers every
+        # Makie element, so one notify suffices.
+        _refresh_timeseries_legend!(state)
         notify(dark_mode)
 
+        isnothing(_DASHBOARD_HOOK[]) || _DASHBOARD_HOOK[]((;
+            state, var_menu, component_menu, reduction_menu, period_menu,
+            aggregation_menu, ts_mode_menu, time_slider, summary_button, show_summary, summary_content,
+        ))
+
         return layout(
-            var_menu, reduction_menu, period_menu, aggregation_menu,
+            var_menu, reduction_menu, period_menu, aggregation_menu, ts_mode_menu,
             time_slider, height_slider, play_button, speed_slider,
             fig, fig_bias, fig_profile, fig_timeseries,
             show_height, show_bias, metrics, time_value_text,
             time_value_label, height_value_label, speed_value_label,
             dark_mode_checkbox,
-            is_loading, loading_status,
+            is_loading, loading_status, obs_name;
+            run_title = run_title,
+            component_menu = component_menu,
+            summary_button = summary_button,
+            summary_overlay = summary_overlay,
         )
     end
 

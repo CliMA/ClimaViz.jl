@@ -42,6 +42,8 @@ mutable struct AppState
     timeseries::Observable
     timeseries_obs::Observable      # parallel obs series (NaN where missing)
     show_obs_line::Observable       # mirrors show_bias for the obs line
+    timeseries_mode::Observable     # Symbol: :local (clicked point) or :global (land mean)
+    obs_name::Observable            # display name of the obs product ("ERA5", …)
     timeseries_title::Observable
     timeseries_ylabel::Observable
     current_time_index::Observable
@@ -89,12 +91,18 @@ mutable struct AppState
     fig_profile::Any
     fig_timeseries::Any
 
-    # Caches keyed by (variable short_name, aggregation level)
-    bias_limits_cache::Dict{Tuple{String, Symbol}, Tuple{Float64, Float64}}
-    obs_resampled_cache::Dict{Tuple{String, Symbol}, Any}
-    # Per-(short_name, level, time index) :selected MetricsTable, prefilled from
-    # the persistent cache so time-slider scrubbing is instant.
-    metrics_cache::Dict{Tuple{String, Symbol, Int}, Any}
+    # Session caches keyed by (short_name, reduction, period, level[, …]).
+    # Keys are fully qualified, so entries stay valid for the whole session and
+    # are kept across variable switches — flipping back to an already-visited
+    # variable is then instant instead of redoing regridding/quantiles/metrics.
+    bias_limits_cache::Dict{Tuple{String, String, String, Symbol}, Tuple{Float64, Float64}}
+    obs_resampled_cache::Dict{Tuple{String, String, String, Symbol}, Any}
+    # Per-(…, time index) :selected MetricsTable, prefilled from the persistent
+    # cache so time-slider scrubbing is instant.
+    metrics_cache::Dict{Tuple{String, String, String, Symbol, Int}, Any}
+    # Map colorbar limits per (…, height index) — a full-field quantile scan
+    # otherwise repeated on every variable/aggregation/height switch.
+    limits_cache::Dict{Tuple{String, String, String, Symbol, Int}, Tuple{Float64, Float64}}
 
     # Persistent benchmark cache controller (BenchmarkCache) or nothing.
     bench_cache::Any
@@ -102,10 +110,55 @@ mutable struct AppState
     # half, short_name + level, is read off `var` / `aggregation_level`).
     current_reduction::String
     current_period::String
+    # start_date (ISO string) substituted into variables whose files lack the
+    # attribute — the atmos start_date in coupled mode, `nothing` otherwise.
+    fallback_start_date::Any
+    # Spatial mask for "global" statistics, keyed into MASK_SPECS — :land
+    # (ocean-masked), :globe (atmos, no mask) or :ocean (land-masked).
+    mask_kind::Symbol
 
     # Misc
     n_ticks::Int
     updating::Bool
+end
+
+# Variable short names of a SimDir in stable (alphabetical) order.
+_sorted_vars(simdir) = sort!(collect(String, keys(simdir.vars)))
+
+# ─── Per-component spatial masking ───────────────────────────────────────────
+# The dashboard's "global" statistics — global time series, the metrics table
+# (Sim/Obs mean, Bias, RMSE) and the model summary — restrict the area-weighted
+# mean to where the component's fields are meaningful: land for ClimaLand
+# output (the ocean-masked convention this dashboard always used), the full
+# globe for atmos, ocean for the ocean/seaice components. `cache_tag` is
+# appended to persistent-cache fingerprints so mask changes invalidate stale
+# entries; it is empty for `:land` to keep pre-existing caches valid.
+const MASK_SPECS = (
+    land = (mask = ClimaAnalysis.apply_oceanmask, global_label = "Global (land mean)",
+            summary_note = "land-only (ocean-masked)", cache_tag = ""),
+    globe = (mask = nothing, global_label = "Global",
+             summary_note = "full-globe", cache_tag = "|mask=globe"),
+    ocean = (mask = ClimaAnalysis.apply_landmask, global_label = "Global (ocean mean)",
+             summary_note = "ocean-only (land-masked)", cache_tag = "|mask=ocean"),
+)
+
+mask_spec(kind::Symbol) = getproperty(MASK_SPECS, kind)
+
+component_mask_kind(label) =
+    label == "atmos" ? :globe :
+    label in ("ocean", "seaice") ? :ocean : :land
+
+# Load a simulation variable in display units. If the source file lacks the
+# `start_date` attribute (seen on ClimaLand output inside coupler runs, and
+# required by `ClimaAnalysis.dates`), substitute `fallback_start_date` (the
+# atmos one in coupled mode). The patch mutates the SimDir-cached OutputVar,
+# so it sticks for later loads of the same variable.
+function load_sim_var(simdir, short_name, reduction, period; fallback_start_date = nothing)
+    var = get(simdir; short_name = short_name, reduction = reduction, period = period)
+    if !haskey(var.attributes, "start_date") && !isnothing(fallback_start_date)
+        var.attributes["start_date"] = string(fallback_start_date)
+    end
+    return to_display_units(var)
 end
 
 # Check if variable has height dimension
@@ -217,16 +270,40 @@ end
 function get_obs_timeseries(obs_var, lon, lat, sim_length)
     isnothing(obs_var) && return fill(NaN, sim_length)
     data = ClimaAnalysis.slice(obs_var; lon = lon, lat = lat).data
-    n = length(data)
-    if n == sim_length
-        return collect(Float64, data)
-    elseif n < sim_length
-        out = fill(NaN, sim_length)
-        out[1:n] .= data
-        return out
-    else
-        return collect(Float64, data[1:sim_length])
+    return _pad_series(data, sim_length)
+end
+
+# Pad with NaN (or truncate) a series to exactly `n` entries.
+function _pad_series(data, n)
+    out = fill(NaN, n)
+    m = min(length(data), n)
+    out[1:m] .= data[1:m]
+    return out
+end
+
+# Area-weighted global mean per time step (NaN-aware) under `mask` — the same
+# convention as the "Sim mean" / "Obs mean" metrics rows. The default mask is
+# the land-only (ocean-masked) one; pass `mask = nothing` for the full globe
+# (atmos). For variables with a height dimension, the mean is taken at the
+# selected height.
+function get_global_timeseries(var; height_selected = 1, mask = ClimaAnalysis.apply_oceanmask)
+    if has_height(var)
+        z_dim = get_height_dim_name(var)
+        var = ClimaAnalysis.slice(var; Symbol(z_dim) => var.dims[z_dim][height_selected])
     end
+    masked = isnothing(mask) ? var :
+        try
+            mask(var)
+        catch
+            var
+        end
+    return collect(Float64, vec(ClimaAnalysis.weighted_average_lonlat(masked).data))
+end
+
+# Global obs series under the same mask, padded/truncated to the sim length.
+function get_obs_global_timeseries(obs_var, sim_length; mask = ClimaAnalysis.apply_oceanmask)
+    isnothing(obs_var) && return fill(NaN, sim_length)
+    return _pad_series(get_global_timeseries(obs_var; mask), sim_length)
 end
 
 const _MONTH_TO_SEASON = Dict(
@@ -297,24 +374,22 @@ function profile_title_string(var, dates_array, time_idx, lon_val, lat_val, leve
     )
 end
 
-function timeseries_title_string(var, heights, height_idx, lon_val, lat_val)
+function timeseries_title_string(var, heights, height_idx, lon_val, lat_val, mode::Symbol = :local, global_label = "Global (land mean)")
+    where_str = mode === :global ? global_label :
+        string("Lon: ", round(lon_val, digits = 2), "°, Lat: ", round(lat_val, digits = 2), "°")
     if has_height(var)
         return string(
             ClimaAnalysis.short_name(var), " - Time Series\n",
-            "Height: ", round(heights[height_idx], digits = 1), " m, ",
-            "Lon: ", round(lon_val, digits = 2), "°, Lat: ", round(lat_val, digits = 2), "°",
+            "Height: ", round(heights[height_idx], digits = 1), " m, ", where_str,
         )
     else
-        return string(
-            ClimaAnalysis.short_name(var), " - Time Series\n",
-            "Lon: ", round(lon_val, digits = 2), "°, Lat: ", round(lat_val, digits = 2), "°",
-        )
+        return string(ClimaAnalysis.short_name(var), " - Time Series\n", where_str)
     end
 end
 
-function bias_title_string(var, dates_array, time_idx, level::Symbol = :native)
+function bias_title_string(var, dates_array, time_idx, level::Symbol = :native, obs_name = "Obs")
     return string(
-        "Sim − Obs: ", ClimaAnalysis.short_name(var), " [",
+        "Sim − ", obs_name, ": ", ClimaAnalysis.short_name(var), " [",
         ClimaAnalysis.units(var), "]\n",
         format_date_for_level(dates_array[time_idx], level),
     )

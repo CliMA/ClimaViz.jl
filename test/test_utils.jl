@@ -20,11 +20,12 @@
         @test min_val ≈ 1.0
         @test max_val ≈ 5.0
 
-        # Test with single value (edge case)
+        # Test with single value (edge case): a flat profile gets a
+        # ±(0.1|v| + 0.1) buffer so the axis never has a zero-width range.
         profile_data_single = [3.0]
         min_val, max_val = ClimaViz.get_profile_limits(profile_data_single)
-        @test min_val == 3.0  # No range, no padding
-        @test max_val == 3.0
+        @test min_val ≈ 2.6
+        @test max_val ≈ 3.4
     end
 
     @testset "has_height" begin
@@ -55,5 +56,33 @@
         # but we can ensure it runs without errors
         @test (ClimaViz.print_startup_message(8080); true)
         @test (ClimaViz.print_startup_message(3000); true)
+    end
+
+    @testset "_pad_series" begin
+        @test ClimaViz._pad_series([1.0, 2.0], 4) ≈ [1.0, 2.0, NaN, NaN] nans = true
+        @test ClimaViz._pad_series([1.0, 2.0, 3.0], 2) == [1.0, 2.0]
+        @test ClimaViz._pad_series([1.0, 2.0], 2) == [1.0, 2.0]
+    end
+
+    @testset "obs_source_name" begin
+        @test ClimaViz.obs_source_name(nothing) == "obs"
+        tagged = (attributes = Dict("obs_source" => "ERA5"),)
+        untagged = (attributes = Dict{String, Any}(),)
+        @test ClimaViz.obs_source_name(tagged) == "ERA5"
+        @test ClimaViz.obs_source_name(untagged) == "obs"
+    end
+
+    @testset "timeseries_title_string modes" begin
+        var = ClimaAnalysis.OutputVar(
+            Dict{String, Any}("short_name" => "lhf"),
+            Dict("time" => [0.0, 1.0, 2.0]),
+            Dict{String, Dict}(),
+            [1.0, 2.0, 3.0],
+        )
+        t_local = ClimaViz.timeseries_title_string(var, Float64[], 1, -118.25, 34.05, :local)
+        t_global = ClimaViz.timeseries_title_string(var, Float64[], 1, -118.25, 34.05, :global)
+        @test occursin("Lon: -118.25°, Lat: 34.05°", t_local)
+        @test occursin("Global (land mean)", t_global)
+        @test occursin("lhf", t_global)
     end
 end

@@ -55,7 +55,8 @@ function create_main_figure(var, var_sliced, limits, lon, lat, lon_profile, lat_
 end
 
 # Bias map (sim - obs) with diverging colormap, symmetric around 0.
-function create_bias_figure(var, bias_sliced, bias_limits, bias_title, lon, lat, lon_profile, lat_profile, bg_color)
+# `obs_name` is an Observable with the obs product display name ("ERA5", …).
+function create_bias_figure(var, bias_sliced, bias_limits, bias_title, lon, lat, lon_profile, lat_profile, bg_color, obs_name)
     fig = Figure(size = (1075, 540), backgroundcolor = bg_color, figure_padding = 0)
 
     ax = GeoAxis(fig[1, 1], title = bias_title, titlesize = 16.0f0, dest = "+proj=eqc")
@@ -79,9 +80,9 @@ function create_bias_figure(var, bias_sliced, bias_limits, bias_title, lon, lat,
         color = (:red, 0.7), markersize = 20, marker = :circle,
     )
 
-    colorbar_label = Observable(string(
-        "sim − obs [", ClimaAnalysis.units(var[]), "]",
-    ))
+    colorbar_label = map(var, obs_name) do v, n
+        string("sim − ", n, " [", ClimaAnalysis.units(v), "]")
+    end
 
     cbar = Colorbar(
         fig[2, 1], surface_plot_bias;
@@ -91,10 +92,6 @@ function create_bias_figure(var, bias_sliced, bias_limits, bias_title, lon, lat,
         tellheight = true, tellwidth = false,
     )
     rowgap!(fig.layout, 4)
-
-    on(var) do v
-        colorbar_label[] = string("sim − obs [", ClimaAnalysis.units(v), "]")
-    end
 
     return fig, ax, coastlines_plot, cbar, surface_plot_bias, colorbar_label
 end
@@ -159,20 +156,18 @@ function create_timeseries_figure(
     time_indices = map(t -> collect(1:length(t)), timeseries)
     timeseries_lines = lines!(
         ax_timeseries, time_indices, timeseries;
-        color = :black, linewidth = 2, label = "model",
+        color = :black, linewidth = 2,
     )
     timeseries_obs_lines = lines!(
         ax_timeseries, time_indices, timeseries_obs;
-        color = :orange, linewidth = 2, label = "obs", visible = show_obs_line,
+        color = :orange, linewidth = 2, visible = show_obs_line,
     )
 
     current_time_index = Observable(time_selected[])
     vlines!(ax_timeseries, current_time_index; color = (:grey, 0.7), linewidth = 2)
 
-    timeseries_legend = axislegend(
-        ax_timeseries;
-        position = :rt, framevisible = false, labelsize = 12, padding = (4, 4, 2, 2),
-    )
+    # The legend is created (and recreated when the obs product changes) by
+    # `_refresh_timeseries_legend!` — Makie legends don't track label changes.
 
     n_ticks = min(10, length(dates_array))
     tick_indices = round.(Int, range(1, length(dates_array), length = n_ticks))
@@ -182,5 +177,5 @@ function create_timeseries_figure(
     autolimits!(ax_timeseries)
 
     return fig_timeseries, ax_timeseries, timeseries_ylabel, current_time_index, n_ticks,
-        timeseries_lines, timeseries_obs_lines, timeseries_legend
+        timeseries_lines, timeseries_obs_lines
 end

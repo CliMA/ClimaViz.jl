@@ -182,14 +182,16 @@ function _start_date_of(var)
 end
 
 """
-    compute_benchmark_entry(sim_agg, obs_agg, fingerprint) -> BenchmarkCacheEntry
+    compute_benchmark_entry(sim_agg, obs_agg, fingerprint; mask = apply_oceanmask) -> BenchmarkCacheEntry
 
 Do the heavy benchmark work for one already-aggregated (sim, obs) pair: regrid
 every obs slice onto the sim grid, derive the bias-map colorbar limits, and
 compute the `:selected`-scope metrics for each time index. `obs_agg` must be the
-obs windowed/aligned to `sim_agg` (see `aggregate_obs`).
+obs windowed/aligned to `sim_agg` (see `aggregate_obs`). `mask` is the spatial
+mask used for the metrics (see `MASK_SPECS`); the caller must bake the matching
+`cache_tag` into `fingerprint` so mask changes invalidate the entry.
 """
-function compute_benchmark_entry(sim_agg, obs_agg, fingerprint::AbstractString)
+function compute_benchmark_entry(sim_agg, obs_agg, fingerprint::AbstractString; mask = ClimaAnalysis.apply_oceanmask)
     sim_dates = ClimaAnalysis.dates(sim_agg)
     obs_dates = ClimaAnalysis.dates(obs_agg)
     n = min(length(sim_dates), length(obs_dates))
@@ -215,7 +217,7 @@ function compute_benchmark_entry(sim_agg, obs_agg, fingerprint::AbstractString)
     for t in 1:n
         mt = compute_metrics(
             sim_trunc, obs_trunc;
-            selected_idx = t, scopes = (:selected,),
+            selected_idx = t, mask = mask, scopes = (:selected,),
             compute_seasonal_diagnostics = false,
         )
         metrics_per_t[t] = copy(mt.values)
@@ -231,12 +233,16 @@ end
 # ─── Batch precompute ─────────────────────────────────────────────────────────
 
 """
-    precompute_dashboard_cache(path; obs = default_era5_obs(), verbose = true)
+    precompute_dashboard_cache(path; obs = default_era5_obs(), verbose = true, mask_kind = :land)
 
 Warm the persistent benchmark cache for every (variable, reduction, period,
 aggregation level) in `path` that has a registered observation. Already-cached,
 up-to-date entries are skipped (cheap fingerprint check), so this is safe to
 re-run — e.g. after regenerating the longrun, or on each server restart.
+
+`mask_kind` selects the spatial mask for the metrics (see `MASK_SPECS`):
+`:land` (ocean-masked, the default), `:globe` (atmos components of coupled
+runs) or `:ocean`. It must match what the dashboard will use for this output.
 
 Run this once after producing the simulation output (or in CI). The dashboard
 reads whatever is present and falls back to live computation on a miss, so
@@ -244,7 +250,7 @@ precomputing is purely a responsiveness optimization.
 
 Returns the `BenchmarkCache`.
 """
-function precompute_dashboard_cache(path; obs = default_era5_obs(), verbose = true)
+function precompute_dashboard_cache(path; obs = default_obs(), verbose = true, mask_kind::Symbol = :land)
     simdir = ClimaAnalysis.SimDir(path)
     cache = BenchmarkCache(path; enabled = true)
     if isnothing(cache.dir)
@@ -258,7 +264,7 @@ function precompute_dashboard_cache(path; obs = default_era5_obs(), verbose = tr
         for reduction in keys(simdir.vars[short_name])
             for period in keys(simdir.vars[short_name][reduction])
                 var = try
-                    get(simdir; short_name = short_name, reduction = reduction, period = period)
+                    to_display_units(get(simdir; short_name = short_name, reduction = reduction, period = period))
                 catch e
                     @warn "ClimaViz: skip $short_name/$reduction/$period (load failed)" exception = e
                     continue
@@ -267,7 +273,8 @@ function precompute_dashboard_cache(path; obs = default_era5_obs(), verbose = tr
                 bundle = ObsBundle(obs; start_date = _start_date_of(var))
                 o = get_obs(bundle, short_name)
                 isnothing(o) && continue
-                fingerprint = _source_fingerprint(simdir, short_name, reduction, period)
+                fingerprint = _source_fingerprint(simdir, short_name, reduction, period) *
+                    mask_spec(mask_kind).cache_tag
                 for level in available_levels(var)
                     key = (short_name, reduction, period, level)
                     if !isnothing(get_cached_entry(cache, key, fingerprint))
@@ -278,7 +285,7 @@ function precompute_dashboard_cache(path; obs = default_era5_obs(), verbose = tr
                     obs_agg = aggregate_obs(o, var, level)
                     isnothing(obs_agg) && continue
                     sim_agg = aggregate_var(var, level)
-                    entry = compute_benchmark_entry(sim_agg, obs_agg, fingerprint)
+                    entry = compute_benchmark_entry(sim_agg, obs_agg, fingerprint; mask = mask_spec(mask_kind).mask)
                     put_cached_entry!(cache, key, entry)
                     n_done += 1
                     verbose && @info "  cached" var = short_name reduction period level n = entry.n

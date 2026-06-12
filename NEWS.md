@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+### New Features
+
+#### ClimaCoupler (multi-component) outputs
+- `dashboard(path; coupled = true)` reads ClimaCoupler output directories
+  (`clima_atmos/`, `clima_land/`, `clima_ocean/`, `clima_seaice/` subfolders)
+  and adds a "Component:" menu to switch between them at runtime; empty or
+  missing components are skipped
+- The atmos component is restricted to its monthly (`_1M_`) native-grid
+  diagnostics; land files missing a `start_date` attribute inherit the atmos
+  start date
+- ERA5 surface-flux benchmarks registered under the ClimaAtmos/CMIP names
+  (`hfls`, `hfss`, `rlus`, `rsus`) in addition to the ClimaLand ones
+- "Global" statistics (global time series, metrics table, model summary)
+  follow the component's spatial mask: land mean (ocean-masked) for land and
+  plain ClimaLand runs as before, full globe for atmos, ocean mean
+  (land-masked) for ocean/seaice — menu labels and summary captions adapt
+
+#### Model performance summary
+- New "Model summary" button opens an overlay with the global ocean-masked
+  RMSE (and bias) of every benchmarked variable vs. observations over the
+  whole simulation period, per season (All-time / DJF / MAM / JJA / SON),
+  color-coded green→red by RMSE relative to the observed mean
+- Computed once per component and persisted in the `.climaviz_cache`, so
+  reopening is instant; `dashboard(...; precompute = true)` also warms it
+
+### Performance Improvements
+
+- Benchmark session caches (regridded obs slices, bias limits, per-frame
+  metrics) are now keyed by (variable, reduction, period, level) and kept for
+  the whole session instead of being discarded on every variable switch —
+  returning to an already-visited variable repaints instantly
+- Map colorbar limits (a full-field quantile scan) are cached per
+  (variable, reduction, period, level, height)
+- Scrubbing the time slider on un-precomputed data no longer blocks ~2 s per
+  tick: the per-frame metrics computation runs asynchronously and only the
+  newest result is applied (latest-wins), with results cached for revisits
+
 ## v0.1.4 - 2025-11-11
 
 ### New Features
