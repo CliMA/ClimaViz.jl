@@ -51,15 +51,40 @@ function _prune_to_1M!(simdir)
     return simdir
 end
 
+# Directory a component's `SimDir` should read. `SimDir` walks the tree with
+# `walkdir`, so if a component folder holds both the current run's
+# `output_active`/`output_NNNN` subfolder *and* stale loose `.nc` files left at
+# the top level from an earlier run, it picks up each variable twice and tries
+# to stitch their overlapping time axes ("Time dimension is not in
+# non-decreasing order"). When an `output_active` symlink (or, failing that, the
+# highest-numbered `output_NNNN`) exists, read from it so only the current run's
+# files are seen; otherwise read the folder itself (components like land/ocean
+# write their diagnostics as loose files with no `output_*` subdir).
+function _resolve_sim_path(component_path)
+    active = joinpath(component_path, "output_active")
+    isdir(active) && return active
+    numbered = filter(readdir(component_path)) do entry
+        startswith(entry, "output_") &&
+            !isnothing(tryparse(Int, last(split(entry, "_")))) &&
+            isdir(joinpath(component_path, entry))
+    end
+    isempty(numbered) && return component_path
+    return joinpath(component_path, maximum(numbered))
+end
+
 """
     discover_components(path)
 
 Scan a ClimaCoupler output directory for component subfolders
 (`clima_atmos`, `clima_land`, `clima_ocean`, `clima_seaice`) and return a
 `Vector` of `(label = "atmos", path = …, simdir = SimDir(…))` NamedTuples for
-every component that contains at least one readable variable. The atmos
-component is pruned to its monthly (`_1M_`) native-grid diagnostics (see
-`_prune_to_1M!`); empty folders (e.g. an inactive ocean) are skipped.
+every component that contains at least one readable variable. Each `SimDir` is
+read from the component's current-run output folder (`output_active` /
+`output_NNNN`) when present, ignoring stale loose `.nc` files left at the
+component root (see `_resolve_sim_path`); `path` stays the component root so the
+`.climaviz_cache` location is stable across runs. The atmos component is pruned
+to its monthly (`_1M_`) native-grid diagnostics (see `_prune_to_1M!`); empty
+folders (e.g. an inactive ocean) are skipped.
 """
 function discover_components(path)
     components = NamedTuple{(:label, :path, :simdir), Tuple{String, String, Any}}[]
@@ -67,7 +92,7 @@ function discover_components(path)
         component_path = joinpath(path, subdir)
         isdir(component_path) || continue
         simdir = try
-            ClimaAnalysis.SimDir(component_path)
+            ClimaAnalysis.SimDir(_resolve_sim_path(component_path))
         catch e
             @warn "ClimaViz: failed to read coupler component" component_path exception = e
             continue

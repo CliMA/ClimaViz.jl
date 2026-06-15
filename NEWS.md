@@ -39,6 +39,16 @@
   tick: the per-frame metrics computation runs asynchronously and only the
   newest result is applied (latest-wins), with results cached for revisits
 
+### Bug Fixes
+
+- Coupled-mode discovery now reads each component's `SimDir` from its
+  current-run output folder (`output_active` / highest `output_NNNN`) when one
+  exists, instead of the component root. A component folder that also held stale
+  loose `.nc` files from an earlier run made `SimDir` (which walks the whole
+  tree) pick up each variable twice and fail to stitch the overlapping time axes
+  ("Time dimension is not in non-decreasing order"); those leftover files are
+  now ignored. The `.climaviz_cache` location is unchanged
+
 ## v0.1.4 - 2025-11-11
 
 ### New Features

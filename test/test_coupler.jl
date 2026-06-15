@@ -38,6 +38,44 @@
         @test ClimaViz.discover_components(mktempdir()) == []
     end
 
+    @testset "_resolve_sim_path" begin
+        # Loose files, no output_* subdir (land/ocean convention): use the
+        # folder itself.
+        loose = mktempdir()
+        touch(joinpath(loose, "gpp_1M_average.nc"))
+        @test ClimaViz._resolve_sim_path(loose) == loose
+
+        # output_active symlink present (current-run pointer): read from it.
+        active = mktempdir()
+        mkpath(joinpath(active, "output_0000"))
+        symlink("output_0000", joinpath(active, "output_active"))
+        @test ClimaViz._resolve_sim_path(active) == joinpath(active, "output_active")
+
+        # No output_active, but numbered run folders: take the highest.
+        numbered = mktempdir()
+        mkpath.(joinpath.(numbered, ("output_0000", "output_0002", "output_0001")))
+        touch(joinpath(numbered, "output_unrelated"))  # non-numbered, ignored
+        @test ClimaViz._resolve_sim_path(numbered) == joinpath(numbered, "output_0002")
+    end
+
+    @testset "discover_components ignores stale top-level files" begin
+        # An atmos folder holding the current run under output_active *and* a
+        # stale variable left loose at the top level: only the current run's
+        # variables should appear (this is what previously caused the
+        # "Time dimension is not in non-decreasing order" stitch error).
+        dir = mktempdir()
+        atmos = joinpath(dir, "clima_atmos")
+        mkpath(joinpath(atmos, "output_0000"))
+        symlink("output_0000", joinpath(atmos, "output_active"))
+        touch(joinpath(atmos, "output_0000", "pr_1M_average.nc"))
+        touch(joinpath(atmos, "stale_1M_average.nc"))  # leftover, must be ignored
+
+        comps = ClimaViz.discover_components(dir)
+        @test [c.label for c in comps] == ["atmos"]
+        @test comps[1].path == atmos  # cache root stays the component folder
+        @test sort(collect(keys(comps[1].simdir.vars))) == ["pr"]
+    end
+
     @testset "_prune_to_1M! prunes variable_paths too" begin
         dir = make_fake_coupler_dir()
         comps = ClimaViz.discover_components(dir)
