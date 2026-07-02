@@ -20,6 +20,12 @@ default_inversion_obs
 default_gpcp_obs
 ```
 
+## Display units
+
+```@docs
+to_display_units
+```
+
 ## Index
 
 ```@index
