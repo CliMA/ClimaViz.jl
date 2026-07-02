@@ -233,7 +233,7 @@ end
 # ─── Batch precompute ─────────────────────────────────────────────────────────
 
 """
-    precompute_dashboard_cache(path; obs = default_era5_obs(), verbose = true, mask_kind = :land)
+    precompute_dashboard_cache(path; obs = default_obs(), verbose = true, mask_kind = :land, simdir = ClimaAnalysis.SimDir(path))
 
 Warm the persistent benchmark cache for every (variable, reduction, period,
 aggregation level) in `path` that has a registered observation. Already-cached,
@@ -244,14 +244,26 @@ re-run — e.g. after regenerating the longrun, or on each server restart.
 `:land` (ocean-masked, the default), `:globe` (atmos components of coupled
 runs) or `:ocean`. It must match what the dashboard will use for this output.
 
+Pass `simdir` when the dashboard will serve a filtered/relocated view of
+`path` (e.g. a coupled component pruned to monthly diagnostics and read from
+`output_active`, see `discover_components`) — precomputing from a different
+`SimDir` than the dashboard uses would both cover entries the UI never shows
+and produce fingerprints that never match at lookup time. The cache still
+lives at `<path>/.climaviz_cache`.
+
 Run this once after producing the simulation output (or in CI). The dashboard
 reads whatever is present and falls back to live computation on a miss, so
 precomputing is purely a responsiveness optimization.
 
 Returns the `BenchmarkCache`.
 """
-function precompute_dashboard_cache(path; obs = default_obs(), verbose = true, mask_kind::Symbol = :land)
-    simdir = ClimaAnalysis.SimDir(path)
+function precompute_dashboard_cache(
+    path;
+    obs = default_obs(),
+    verbose = true,
+    mask_kind::Symbol = :land,
+    simdir = ClimaAnalysis.SimDir(path),
+)
     cache = BenchmarkCache(path; enabled = true)
     if isnothing(cache.dir)
         @warn "ClimaViz: cache directory unavailable; nothing precomputed" path
@@ -282,13 +294,20 @@ function precompute_dashboard_cache(path; obs = default_obs(), verbose = true, m
                         verbose && @info "  skip (up-to-date)" var = short_name reduction period level
                         continue
                     end
-                    obs_agg = aggregate_obs(o, var, level)
-                    isnothing(obs_agg) && continue
-                    sim_agg = aggregate_var(var, level)
-                    entry = compute_benchmark_entry(sim_agg, obs_agg, fingerprint; mask = mask_spec(mask_kind).mask)
-                    put_cached_entry!(cache, key, entry)
-                    n_done += 1
-                    verbose && @info "  cached" var = short_name reduction period level n = entry.n
+                    # Precompute is an optimization: one bad entry must never
+                    # take the server down (the dashboard falls back to live
+                    # computation on a miss), so failures are warned and skipped.
+                    try
+                        obs_agg = aggregate_obs(o, var, level)
+                        isnothing(obs_agg) && continue
+                        sim_agg = aggregate_var(var, level)
+                        entry = compute_benchmark_entry(sim_agg, obs_agg, fingerprint; mask = mask_spec(mask_kind).mask)
+                        put_cached_entry!(cache, key, entry)
+                        n_done += 1
+                        verbose && @info "  cached" var = short_name reduction period level n = entry.n
+                    catch e
+                        @warn "ClimaViz: skip $short_name/$reduction/$period/$level (compute failed)" exception = (e, catch_backtrace())
+                    end
                 end
             end
         end

@@ -74,4 +74,42 @@
             @test haskey(obs, name)
         end
     end
+
+    @testset "aggregate_var monthly/daily (sub-monthly native data)" begin
+        # Daily var spanning a month boundary: Jan 30, Jan 31, Feb 1, Feb 2.
+        daily = ClimaAnalysis.OutputVar(
+            Dict{String, Any}(
+                "short_name" => "pr", "units" => "mm day^-1",
+                "start_date" => "2000-01-30T00:00:00",
+            ),
+            Dict("time" => [0.0, 1.0, 2.0, 3.0] .* 86400.0),
+            Dict{String, Dict}(),
+            [1.0, 2.0, 3.0, 4.0],
+        )
+        monthly = ClimaViz.aggregate_var(daily, :monthly)
+        @test length(monthly.dims["time"]) == 2
+        @test vec(monthly.data) ≈ [1.5, 3.5]
+
+        # Hourly var spanning a day boundary: 23:00 Jan 1, then 00:00/01:00 Jan 2.
+        hourly = ClimaAnalysis.OutputVar(
+            Dict{String, Any}(
+                "short_name" => "pr", "units" => "mm day^-1",
+                "start_date" => "2000-01-01T23:00:00",
+            ),
+            Dict("time" => [0.0, 1.0, 2.0] .* 3600.0),
+            Dict{String, Dict}(),
+            [1.0, 3.0, 5.0],
+        )
+        by_day = ClimaViz.aggregate_var(hourly, :daily)
+        @test length(by_day.dims["time"]) == 2
+        @test vec(by_day.data) ≈ [1.0, 4.0]
+
+        # Regression: every advertised level must aggregate without throwing
+        # (a daily var advertises :monthly, which used to error and could take
+        # the whole precompute down).
+        for level in ClimaViz.available_levels(daily)
+            agg = ClimaViz.aggregate_var(daily, level)
+            @test agg isa ClimaAnalysis.OutputVar
+        end
+    end
 end

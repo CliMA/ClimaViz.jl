@@ -390,6 +390,10 @@ function aggregation_label(var, level)
         return "Seasonal"
     elseif level == :annual
         return "Annual"
+    elseif level == :monthly
+        return "Monthly"
+    elseif level == :daily
+        return "Daily"
     else
         return string(level)
     end
@@ -431,6 +435,8 @@ averaging is NaN-aware. `level == :native` returns `var` unchanged.
   new time coordinate).
 - `:seasonal`: one frame per (year, season) bin, in chronological order. Season
   is defined by month: DJF, MAM, JJA, SON. DJF is keyed to the year of January.
+- `:monthly`: one frame per (year, month) bin (for daily/hourly-native data).
+- `:daily`: one frame per calendar day (for hourly-native data).
 """
 function aggregate_var(var, level::Symbol)
     level == :native && return var
@@ -450,6 +456,18 @@ function aggregate_var(var, level::Symbol)
         unique_keys = unique(keys_per_date)
         season_order = Dict("DJF" => 1, "MAM" => 2, "JJA" => 3, "SON" => 4)
         sort!(unique_keys; by = k -> (k[1], season_order[k[2]]))
+        groups = [findall(==(k), keys_per_date) for k in unique_keys]
+        new_times = [times[g[(length(g)+1)÷2]] for g in groups]
+        return _aggregate_by_groups(var, groups, new_times)
+    elseif level == :monthly
+        keys_per_date = map(d -> (Dates.year(d), Dates.month(d)), dates)
+        unique_keys = sort!(unique(keys_per_date))
+        groups = [findall(==(k), keys_per_date) for k in unique_keys]
+        new_times = [times[g[(length(g)+1)÷2]] for g in groups]
+        return _aggregate_by_groups(var, groups, new_times)
+    elseif level == :daily
+        keys_per_date = map(d -> Dates.Date(d), dates)
+        unique_keys = sort!(unique(keys_per_date))
         groups = [findall(==(k), keys_per_date) for k in unique_keys]
         new_times = [times[g[(length(g)+1)÷2]] for g in groups]
         return _aggregate_by_groups(var, groups, new_times)
