@@ -20,6 +20,26 @@ function _era5_monthly_nc_path()
     end
 end
 
+function _era5_atmos_monthly_nc_path()
+    try
+        dir = artifact"era5_monthly_averages_atmos_single_level_1979_2024"
+        return joinpath(dir, "era5_monthly_averages_atmos_single_level_197901-202410.nc")
+    catch e
+        @warn "ClimaViz: ERA5 atmos monthly artifact not available; prw benchmark disabled" exception=(e, catch_backtrace())
+        return nothing
+    end
+end
+
+function _gpcp_monthly_nc_path()
+    try
+        dir = artifact"precipitation_obs"
+        return joinpath(dir, "precip.mon.mean.nc")
+    catch e
+        @warn "ClimaViz: GPCP precipitation artifact not available; pr benchmark disabled" exception=(e, catch_backtrace())
+        return nothing
+    end
+end
+
 function _era5_loader(varname_era5, varname_sim; flip_sign = false)
     return function (_start_date)
         path = _era5_monthly_nc_path()
@@ -52,6 +72,42 @@ fall back to the generic `"obs"`.
 """
 obs_source_name(obs) = isnothing(obs) ? "obs" : get(obs.attributes, "obs_source", "obs")
 
+# ERA5 `mer` (mean evaporation rate) uses the ECMWF sign convention — negative
+# for evaporation — while ClimaAtmos `evspsbl` is positive for evaporation, so
+# the conversion flips the sign while rescaling kg m⁻² s⁻¹ (≡ mm s⁻¹ of liquid
+# water) to the dashboard's water-flux display unit (see `to_display_units`).
+function _era5_evap_loader()
+    return function (_start_date)
+        path = _era5_monthly_nc_path()
+        isnothing(path) && return nothing
+        obs_var = ClimaAnalysis.OutputVar(path, "mer")
+        obs_var = ClimaAnalysis.convert_units(
+            obs_var,
+            _DISPLAY_WATER_UNITS;
+            conversion_function = u -> u * -_SECONDS_PER_DAY,
+        )
+        obs_var.attributes["short_name"] = "evspsbl"
+        obs_var.attributes["obs_source"] = "ERA5"
+        return obs_var
+    end
+end
+
+# ERA5 `tcw` is total column water (vapour + cloud condensate) whereas the sim
+# `prw` is water-vapour path only; condensate is ~1 % of the column, so tcw is
+# still a fair reference. The ERA5 monthly artifacts carry no tcwv field.
+function _era5_prw_loader()
+    return function (_start_date)
+        path = _era5_atmos_monthly_nc_path()
+        isnothing(path) && return nothing
+        obs_var = ClimaAnalysis.OutputVar(path, "tcw")
+        (ClimaAnalysis.units(obs_var) == "kg m**-2") &&
+            (obs_var = ClimaAnalysis.set_units(obs_var, "kg m^-2"))
+        obs_var.attributes["short_name"] = "prw"
+        obs_var.attributes["obs_source"] = "ERA5"
+        return obs_var
+    end
+end
+
 """
     default_era5_obs()
 
@@ -62,19 +118,55 @@ monthly observation loaders. Each loader takes a `start_date` and returns a
 Covers the surface fluxes (W m⁻², monthly, 1°×1°) under both the ClimaLand
 names (`lhf`, `shf`, `lwu`, `swu`) and the ClimaAtmos/CMIP names (`hfls`,
 `hfss`, `rlus`, `rsus`) — the same ERA5 fields and sign conventions either
-way. Returns an empty Dict if the underlying artifact is unavailable.
+way — plus evaporation (`evspsbl`, from `mer`, in the mm day⁻¹ display unit)
+and water-vapour path (`prw`, from `tcw`, kg m⁻²). Returns an empty Dict if
+the underlying artifacts are unavailable.
 """
 function default_era5_obs()
-    isnothing(_era5_monthly_nc_path()) && return Dict{String, Function}()
+    obs = Dict{String, Function}()
+    if !isnothing(_era5_monthly_nc_path())
+        merge!(
+            obs,
+            Dict{String, Function}(
+                "lhf" => _era5_loader("mslhf", "lhf"; flip_sign = true),
+                "shf" => _era5_loader("msshf", "shf"; flip_sign = true),
+                "lwu" => _era5_loader("msuwlwrf", "lwu"; flip_sign = false),
+                "swu" => _era5_loader("msuwswrf", "swu"; flip_sign = false),
+                "hfls" => _era5_loader("mslhf", "hfls"; flip_sign = true),
+                "hfss" => _era5_loader("msshf", "hfss"; flip_sign = true),
+                "rlus" => _era5_loader("msuwlwrf", "rlus"; flip_sign = false),
+                "rsus" => _era5_loader("msuwswrf", "rsus"; flip_sign = false),
+                "evspsbl" => _era5_evap_loader(),
+            ),
+        )
+    end
+    isnothing(_era5_atmos_monthly_nc_path()) ||
+        (obs["prw"] = _era5_prw_loader())
+    return obs
+end
+
+"""
+    default_gpcp_obs()
+
+Built-in `Dict{String, Function}` mapping `pr` to a GPCP monthly precipitation
+loader (2.5°×2.5°, 1979–present, from the `precipitation_obs` artifact). GPCP
+stores mm/day — the dashboard's water-flux display unit, into which the sim
+`pr` is converted by [`to_display_units`](@ref) — so only the unit string is
+normalized. Returns an empty Dict if the underlying artifact is unavailable.
+"""
+function default_gpcp_obs()
+    isnothing(_gpcp_monthly_nc_path()) && return Dict{String, Function}()
     return Dict{String, Function}(
-        "lhf" => _era5_loader("mslhf", "lhf"; flip_sign = true),
-        "shf" => _era5_loader("msshf", "shf"; flip_sign = true),
-        "lwu" => _era5_loader("msuwlwrf", "lwu"; flip_sign = false),
-        "swu" => _era5_loader("msuwswrf", "swu"; flip_sign = false),
-        "hfls" => _era5_loader("mslhf", "hfls"; flip_sign = true),
-        "hfss" => _era5_loader("msshf", "hfss"; flip_sign = true),
-        "rlus" => _era5_loader("msuwlwrf", "rlus"; flip_sign = false),
-        "rsus" => _era5_loader("msuwswrf", "rsus"; flip_sign = false),
+        "pr" => function (_start_date)
+            path = _gpcp_monthly_nc_path()
+            isnothing(path) && return nothing
+            obs_var = ClimaAnalysis.OutputVar(path, "precip")
+            obs_var = ClimaAnalysis.replace(obs_var, missing => NaN)
+            obs_var = ClimaAnalysis.set_units(obs_var, _DISPLAY_WATER_UNITS)
+            obs_var.attributes["short_name"] = "pr"
+            obs_var.attributes["obs_source"] = "GPCP"
+            return obs_var
+        end,
     )
 end
 
@@ -96,32 +188,54 @@ const _SECONDS_PER_DAY = 86400.0
 
 # ─── Display-unit conversion ──────────────────────────────────────────────────
 #
-# ClimaLand stores carbon fluxes in mol CO2 m^-2 s^-1, where values are ~1e-6 and
-# the metrics table would render every cell as 0.00. For display we rescale them —
-# and only them — to the more legible g C m^-2 day^-1. Detection is by unit string
-# so every carbon flux (gpp/nee/er/hr/ra, with or without an observation) is
-# caught while energy (W m^-2) and water (kg m^-2 s^-1) fluxes pass through.
+# ClimaLand stores carbon fluxes in mol CO2 m^-2 s^-1 and the atmos/land models
+# store water fluxes in kg m^-2 s^-1, where values are ~1e-6 and the metrics
+# table would render every cell as 0.00. For display we rescale them — and only
+# them — to the more legible g C m^-2 day^-1 and mm day^-1. Detection is by unit
+# string so every such flux (with or without an observation) is caught while
+# energy fluxes (W m^-2) pass through.
 
 const _CARBON_FLUX_UNITS = ("mol CO2 m^-2 s^-1", "mol CO2 m**-2 s**-1")
 const _DISPLAY_CARBON_UNITS = "g C m^-2 day^-1"
 
 is_carbon_flux(var) = ClimaAnalysis.units(var) in _CARBON_FLUX_UNITS
 
+const _WATER_FLUX_UNITS = ("kg m^-2 s^-1", "kg m**-2 s**-1")
+const _DISPLAY_WATER_UNITS = "mm day^-1"
+
+# ClimaAtmos reports precipitation-type fluxes as negative downward mass
+# fluxes; flip them for display so precipitation is positive, matching GPCP
+# and everyday convention (same flip as ClimaCoupler's leaderboard).
+const _NEGATIVE_DOWN_WATER_FLUXES = ("pr", "prra", "prsn")
+
+is_water_flux(var) = ClimaAnalysis.units(var) in _WATER_FLUX_UNITS
+
 """
     to_display_units(var)
 
 Convert a freshly-loaded simulation `OutputVar` to the units the dashboard
-displays. Currently this rescales carbon fluxes from `mol CO2 m^-2 s^-1` to
-`g C m^-2 day^-1` (× molar mass of C × seconds/day); all other variables are
-returned unchanged. Apply this once, at each point a sim variable is loaded, so
-the map, bias panel, time series, and metrics all share one consistent unit.
+displays. Carbon fluxes are rescaled from `mol CO2 m^-2 s^-1` to
+`g C m^-2 day^-1` (× molar mass of C × seconds/day); water fluxes from
+`kg m^-2 s^-1` (≡ mm s⁻¹ of liquid water) to `mm day^-1` (× seconds/day, with
+a sign flip for the negative-downward precipitation fluxes `pr`/`prra`/`prsn`);
+all other variables are returned unchanged. Apply this once, at each point a
+sim variable is loaded, so the map, bias panel, time series, and metrics all
+share one consistent unit.
 """
 function to_display_units(var)
-    is_carbon_flux(var) || return var
-    return ClimaAnalysis.convert_units(
-        var, _DISPLAY_CARBON_UNITS;
-        conversion_function = u -> u * _G_C_PER_MOL * _SECONDS_PER_DAY,
-    )
+    if is_carbon_flux(var)
+        return ClimaAnalysis.convert_units(
+            var, _DISPLAY_CARBON_UNITS;
+            conversion_function = u -> u * _G_C_PER_MOL * _SECONDS_PER_DAY,
+        )
+    elseif is_water_flux(var)
+        sign = get(var.attributes, "short_name", "") in _NEGATIVE_DOWN_WATER_FLUXES ? -1.0 : 1.0
+        return ClimaAnalysis.convert_units(
+            var, _DISPLAY_WATER_UNITS;
+            conversion_function = u -> u * sign * _SECONDS_PER_DAY,
+        )
+    end
+    return var
 end
 
 function _inversion_nc_path()
@@ -192,13 +306,16 @@ end
 """
     default_obs()
 
-Combined built-in observation set: ERA5 monthly energy fluxes
-([`default_era5_obs`](@ref): `lhf`, `shf`, `lwu`, `swu`) merged with the
-inversion-derived carbon fluxes ([`default_inversion_obs`](@ref): `nee`, `gpp`,
-`er`, `hr`). This is the default observation registry for [`dashboard`](@ref)
-and [`precompute_dashboard_cache`](@ref).
+Combined built-in observation set: ERA5 monthly energy/water fluxes and
+water-vapour path ([`default_era5_obs`](@ref): `lhf`, `shf`, `lwu`, `swu` and
+their CMIP aliases, `evspsbl`, `prw`), the inversion-derived carbon fluxes
+([`default_inversion_obs`](@ref): `nee`, `gpp`, `er`, `hr`), and GPCP
+precipitation ([`default_gpcp_obs`](@ref): `pr`). This is the default
+observation registry for [`dashboard`](@ref) and
+[`precompute_dashboard_cache`](@ref).
 """
-default_obs() = merge(default_era5_obs(), default_inversion_obs())
+default_obs() =
+    merge(default_era5_obs(), default_inversion_obs(), default_gpcp_obs())
 
 mutable struct ObsBundle
     loaders::Dict{String, Function}

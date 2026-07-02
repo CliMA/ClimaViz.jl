@@ -11,3 +11,19 @@ git-tree-sha1 = "d400472ea191639cb1dafac41b09ce36383aee54"
     [[inversion_nee.download]]
     sha256 = "84ccc2b60b276575342886535d78faa83f64dd83e327f65b31a10da8f9da721c"
     url = "https://caltech.box.com/shared/static/13xeg76obc5cc73h2sqzhogx0hr97poz.gz"
+
+[era5_monthly_averages_atmos_single_level_1979_2024]
+git-tree-sha1 = "a3169bc6de42f7e3f4ca685654ae240dfbf560e3"
+lazy = true
+
+    [[era5_monthly_averages_atmos_single_level_1979_2024.download]]
+    sha256 = "abf70d77ba59f5f8b5b48600ed6a8be9b819ec18fac086c0abc9c886211320c8"
+    url = "https://caltech.box.com/shared/static/8mo7azrz0gukdtmo2oi0dtvdt1v3t3tv.gz"
+
+[precipitation_obs]
+git-tree-sha1 = "5f0075f042bc83b580d2c4f725f851d8e0b9c20a"
+lazy = true
+
+    [[precipitation_obs.download]]
+    sha256 = "1aea361ee1c2636bd5c4cc343202dab814d246a7e0356a9caac9fd9c7cf3821c"
+    url = "https://caltech.box.com/shared/static/j63uak557kw7tlzb3dgwifoaeczekzm4.gz"

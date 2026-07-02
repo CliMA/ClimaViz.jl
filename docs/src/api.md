@@ -17,6 +17,7 @@ precompute_dashboard_cache
 default_obs
 default_era5_obs
 default_inversion_obs
+default_gpcp_obs
 ```
 
 ## Index

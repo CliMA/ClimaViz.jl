@@ -9,7 +9,7 @@ ClimaViz is a Julia package for generating web dashboards from climate simulatio
 ## Features
 
 - **Interactive web dashboards**: Generate web-based visualizations of your simulation outputs (see [The Dashboard](@ref))
-- **Observation benchmarking**: Bias maps, metrics and a one-page model performance summary against ERA5, CarbonTracker, GOSIF and more (built-in artifacts)
+- **Observation benchmarking**: Bias maps, metrics and a one-page model performance summary against ERA5, GPCP, CarbonTracker, GOSIF and more (built-in artifacts)
 - **ClimaCoupler support**: Browse the atmos/land/ocean/seaice components of a coupled run from one dashboard (`coupled = true`)
 - **HPC support**: Run directly from HPC environments with SSH port forwarding
 - **Local development**: Test and visualize locally before deployment
