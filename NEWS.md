@@ -17,6 +17,20 @@
 - The run-title caption wraps long tokens (e.g. commit hashes) and renders
   newlines as line breaks
 
+### Bug fixes
+
+- `aggregate_var` now implements the `:monthly` and `:daily` levels that
+  `available_levels` advertises for sub-monthly-native data (previously it
+  threw "Unknown aggregation level: monthly", which crashed the server during
+  precompute for e.g. a daily `pr` output with a registered observation)
+- Coupled-mode `precompute_dashboard_cache` now uses the component's own
+  `SimDir` (pruned to monthly, read from `output_active`) instead of
+  re-scanning the raw component folder — it no longer trips over stale loose
+  files ("Time dimension is not in non-decreasing order") or precomputes
+  entries the UI never serves, and its fingerprints match runtime lookups
+- Precompute failures on a single cache entry are warned and skipped instead
+  of aborting server startup
+
 #### ClimaCoupler (multi-component) outputs
 - `dashboard(path; coupled = true)` reads ClimaCoupler output directories
   (`clima_atmos/`, `clima_land/`, `clima_ocean/`, `clima_seaice/` subfolders)

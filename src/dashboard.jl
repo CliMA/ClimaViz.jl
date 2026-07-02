@@ -98,7 +98,10 @@ function dashboard(path; HPC = false, obs = default_obs(), cache = true, precomp
         if precompute && cache
             for c in components_found
                 kind = component_mask_kind(c.label)
-                precompute_dashboard_cache(c.path; obs = obs, mask_kind = kind)
+                # Pass the component's SimDir (pruned, read from output_active)
+                # so precompute covers exactly what the UI serves and its
+                # fingerprints match the runtime lookups.
+                precompute_dashboard_cache(c.path; obs = obs, mask_kind = kind, simdir = c.simdir)
                 precompute_summary!(
                     c.simdir, components[c.label].bench_cache, obs;
                     fallback_start_date = coupled_fallback_start_date, mask_kind = kind,
