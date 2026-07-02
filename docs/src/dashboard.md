@@ -76,14 +76,19 @@ built-in registry ([`default_obs`](@ref)) covers:
 |---|---|---|
 | `lhf`, `shf`, `lwu`, `swu` | ERA5 monthly surface fluxes | ClimaLand names |
 | `hfls`, `hfss`, `rlus`, `rsus` | ERA5 monthly surface fluxes | same fields, ClimaAtmos/CMIP names |
+| `pr` | GPCP monthly precipitation | 2.5°×2.5°, 1979–present |
+| `evspsbl` | ERA5 mean evaporation rate | sign flipped to positive-up |
+| `prw` | ERA5 total column water | tcw includes ~1 % cloud condensate |
 | `nee` | CarbonTracker CT2022 | inversion-derived, 2002–2020 |
 | `gpp` | GOSIF-GPP v2 | |
 | `er` | CarbonTracker + GOSIF residual | |
 | `hr` | Hashimoto 2015 | |
 
 Carbon fluxes are displayed in `g C m^-2 day^-1` (converted from the model's
-`mol CO2 m^-2 s^-1`). All observation data ships as lazy artifacts — nothing
-to download manually.
+`mol CO2 m^-2 s^-1`), and water mass fluxes in `mm day^-1` (converted from
+`kg m^-2 s^-1`, with the ClimaAtmos negative-downward precipitation fluxes
+`pr`/`prra`/`prsn` sign-flipped so precipitation shows positive). All
+observation data ships as lazy artifacts — nothing to download manually.
 
 ### Custom observations
 

@@ -23,7 +23,7 @@ include("paramviz.jl")
 
 export dashboard
 export precompute_dashboard_cache
-export default_obs, default_era5_obs, default_inversion_obs
+export default_obs, default_era5_obs, default_inversion_obs, default_gpcp_obs
 export Drivers, Parameters, Constants, Inputs, Output
 export parameterisation, webapp, param_dashboard, dashboard_paramviz
 

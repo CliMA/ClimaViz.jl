@@ -4,6 +4,19 @@
 
 ### New Features
 
+#### Atmos monthly benchmarks: `pr`, `evspsbl`, `prw`
+- New built-in observation loaders: GPCP monthly precipitation for `pr`
+  (new `precipitation_obs` artifact, ~20 MB), ERA5 mean evaporation rate for
+  `evspsbl` (from the already-shipped surface single-level artifact), and
+  ERA5 total column water for `prw` (new
+  `era5_monthly_averages_atmos_single_level` artifact, ~137 MB)
+- Water mass fluxes (`kg m^-2 s^-1`) are now displayed in `mm day^-1`,
+  mirroring the carbon-flux display conversion; the negative-downward
+  ClimaAtmos precipitation fluxes (`pr`, `prra`, `prsn`) are sign-flipped so
+  precipitation shows positive
+- The run-title caption wraps long tokens (e.g. commit hashes) and renders
+  newlines as line breaks
+
 #### ClimaCoupler (multi-component) outputs
 - `dashboard(path; coupled = true)` reads ClimaCoupler output directories
   (`clima_atmos/`, `clima_land/`, `clima_ocean/`, `clima_seaice/` subfolders)

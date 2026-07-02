@@ -48,8 +48,12 @@ function layout(
 
     # Optional run caption shown just below the play button.
     run_title_style = Bonito.Styles(
-        "font-size" => "1.0rem", "font-weight" => "700",
+        "font-size" => "0.85rem", "font-weight" => "700",
         "margin" => "8px 0 0 0", "text-align" => "center", "color" => "#9ec5fe",
+        # Render newlines in the caption as line breaks (multi-line run titles),
+        # and let an over-long token (e.g. a 40-char commit hash) wrap inside the
+        # 400px menu column instead of overflowing it.
+        "white-space" => "pre-line", "overflow-wrap" => "anywhere",
     )
 
     menu_items = Any[dark_mode_row]
