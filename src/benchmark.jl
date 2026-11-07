@@ -211,6 +211,35 @@ const _NEGATIVE_DOWN_WATER_FLUXES = ("pr", "prra", "prsn")
 is_water_flux(var) = ClimaAnalysis.units(var) in _WATER_FLUX_UNITS
 
 """
+    _numeric_time_axis(var)
+
+Some NetCDF output (e.g. ClimaLand diagnostics in coupler runs, since Nov 2026)
+stores the time axis with CF date units, which NCDatasets decodes to `DateTime`.
+`ClimaAnalysis.dates` (and the rest of ClimaAnalysis' time handling) assumes the
+time axis is numeric seconds since `start_date`, and throws a `MethodError` on
+`DateTime` times. Convert such an axis to `Float64` seconds since `start_date`
+(the variable's own attribute when present, else the first date, which is then
+recorded as `start_date`). Variables with numeric times are returned unchanged.
+"""
+function _numeric_time_axis(var)
+    ClimaAnalysis.has_time(var) || return var
+    tname = ClimaAnalysis.time_name(var)
+    t = var.dims[tname]
+    eltype(t) <: Dates.AbstractDateTime || return var
+    isempty(t) && return var
+    attributes = copy(var.attributes)
+    start = haskey(attributes, "start_date") ? Dates.DateTime(attributes["start_date"]) : Dates.DateTime(first(t))
+    attributes["start_date"] = string(start)
+    dims = copy(var.dims)
+    dims[tname] = [Dates.value(Dates.Millisecond(Dates.DateTime(d) - start)) / 1000.0 for d in t]
+    dim_attributes = copy(var.dim_attributes)
+    tattrs = copy(Base.get(dim_attributes, tname, Dict{String, Any}()))
+    tattrs["units"] = "s"
+    dim_attributes[tname] = tattrs
+    return ClimaAnalysis.remake(var; attributes, dims, dim_attributes, data = var.data)
+end
+
+"""
     to_display_units(var)
 
 Convert a freshly-loaded simulation `OutputVar` to the units the dashboard
@@ -223,6 +252,7 @@ sim variable is loaded, so the map, bias panel, time series, and metrics all
 share one consistent unit.
 """
 function to_display_units(var)
+    var = _numeric_time_axis(var)
     if is_carbon_flux(var)
         return ClimaAnalysis.convert_units(
             var, _DISPLAY_CARBON_UNITS;
